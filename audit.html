@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="sw">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#1e40af">
+    <title>Audit Log - Kumbukumbu</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-brand">
+            <img src="icons/icon-192.png" alt="Logo" class="nav-logo" onerror="this.style.display='none'">
+            <span data-school-name>SHULE YA MSINGI NGARENARO</span>
+        </div>
+        <div class="nav-user">
+            <span id="userName">...</span>
+            <button id="homeBtn" class="btn btn-sm">← Nyumbani</button>
+            <button id="logoutBtn" class="btn btn-sm">Ondoka</button>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="card">
+            <h2>Kumbukumbu ya Mabadiliko (Audit Log)</h2>
+            <p style="color:#666; margin-bottom:20px; font-size:13px;">
+                Kumbukumbu hii inaonyesha kila kitendo kilichofanyika kwenye mfumo — nani, lini, na nini.
+            </p>
+
+            <div class="form-row mb-3">
+                <div class="form-group">
+                    <label>Chuja kwa Kitendo</label>
+                    <select id="filterAction">
+                        <option value="">-- Zote --</option>
+                        <option value="DELETE_PAYMENT">Kufuta Malipo</option>
+                        <option value="EDIT_PAYMENT">Kuhariri Malipo</option>
+                        <option value="LOGIN">Kuingia</option>
+                        <option value="ADD_USER">Kuongeza Mtumiaji</option>
+                        <option value="DELETE_USER">Kufuta Mtumiaji</option>
+                    </select>
+                </div>
+                <div class="form-group" style="display:flex; align-items:flex-end;">
+                    <button class="btn btn-primary btn-block" id="refreshBtn">Sasisha</button>
+                </div>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Tarehe & Muda</th>
+                            <th>Mtumiaji</th>
+                            <th>Kitendo</th>
+                            <th>Maelezo</th>
+                            <th>Sababu</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbody">
+                        <tr><td colspan="5" class="text-center">Inapakia...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <p id="countInfo" style="margin-top:10px; color:#666; font-size:13px;"></p>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/config.js"></script>
+    <script src="js/auth.js"></script>
+    <script>
+        const session = AuthService.requireRole(['administrator', 'head_teacher']);
+        if (session) {
+            document.getElementById('userName').textContent = session.full_name;
+            init();
+        }
+
+        let logs = [];
+        let users = [];
+
+        const actionLabels = {
+            DELETE_PAYMENT: '🗑️ Kufuta Malipo',
+            EDIT_PAYMENT: '✏️ Kuhariri Malipo',
+            LOGIN: '🔓 Kuingia',
+            LOGOUT: '🔒 Kutoka',
+            ADD_USER: '➕ Kuongeza Mtumiaji',
+            DELETE_USER: '🗑️ Kufuta Mtumiaji',
+            EDIT_USER: '✏️ Kuhariri Mtumiaji',
+            EDIT_SETTINGS: '⚙️ Kubadilisha Mipangilio',
+            IMPORT_STUDENTS: '📥 Kupakia Wanafunzi'
+        };
+
+        async function init() {
+            const { data: school } = await supabaseClient
+                .from('schools').select('*').eq('school_id', session.school_id).single();
+            if (school) {
+                document.querySelectorAll('[data-school-name]').forEach(el => el.textContent = school.school_name);
+            }
+
+            // Load users kwa ajili ya jina
+            const { data: u } = await supabaseClient
+                .from('users').select('user_id, full_name').eq('school_id', session.school_id);
+            users = u || [];
+
+            await loadLogs();
+        }
+
+        async function loadLogs() {
+            const { data, error } = await supabaseClient
+                .from('audit_logs')
+                .select('*')
+                .eq('school_id', session.school_id)
+                .order('created_at', { ascending: false })
+                .limit(500);
+
+            if (error) {
+                document.getElementById('tbody').innerHTML =
+                    '<tr><td colspan="5" class="text-center" style="color:#dc2626;">Hitilafu: ' + error.message + '</td></tr>';
+                return;
+            }
+            logs = data || [];
+            render();
+        }
+
+        function render() {
+            const tbody = document.getElementById('tbody');
+            const filter = document.getElementById('filterAction').value;
+
+            let filtered = logs;
+            if (filter) filtered = filtered.filter(l => l.action === filter);
+
+            document.getElementById('countInfo').textContent =
+                `Jumla: ${filtered.length} kati ya ${logs.length} kumbukumbu`;
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center">Hakuna kumbukumbu</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = '';
+            filtered.forEach(l => {
+                const user = users.find(u => u.user_id === l.user_id);
+                const date = new Date(l.created_at);
+                const dateStr = date.toLocaleDateString('sw-TZ') + ' ' +
+                              date.toLocaleTimeString('sw-TZ', { hour: '2-digit', minute: '2-digit' });
+
+                let maelezo = '-';
+                if (l.old_values && l.table_name) {
+                    if (l.table_name === 'payments') {
+                        maelezo = `Malipo ya Tsh ${Number(l.old_values.amount || 0).toLocaleString()}`;
+                        if (l.old_values.student_id) maelezo += ` kwa mwanafunzi`;
+                    } else if (l.table_name === 'users') {
+                        maelezo = `Mtumiaji: ${l.old_values.full_name || l.old_values.username || '?'}`;
+                    }
+                } else if (l.new_values && l.table_name) {
+                    maelezo = 'Data mpya';
+                }
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td style="white-space:nowrap; font-size:12px;">${dateStr}</td>
+                    <td>${user?.full_name || '<em style="color:#999;">Haijulikani</em>'}</td>
+                    <td>${actionLabels[l.action] || l.action}</td>
+                    <td style="font-size:13px;">${maelezo}</td>
+                    <td style="font-size:13px;">${l.reason || '-'}</td>`;
+                tbody.appendChild(tr);
+            });
+        }
+
+        document.getElementById('filterAction').onchange = render;
+        document.getElementById('refreshBtn').onclick = () => loadLogs();
+
+        document.getElementById('homeBtn').onclick = () => {
+            window.location.href = session.role === 'administrator' ? 'admin-dashboard.html' : 'head-dashboard.html';
+        };
+        document.getElementById('logoutBtn').onclick = () => AuthService.logout();
+    </script>
+</body>
+</html>

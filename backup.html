@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="sw">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#1e40af">
+    <title>Backup / Restore Data</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-brand">
+            <img src="icons/icon-192.png" alt="Logo" class="nav-logo" onerror="this.style.display='none'">
+            <span data-school-name>SHULE YA MSINGI NGARENARO</span>
+        </div>
+        <div class="nav-user">
+            <span id="userName">...</span>
+            <button id="homeBtn" class="btn btn-sm">← Nyumbani</button>
+            <button id="logoutBtn" class="btn btn-sm">Ondoka</button>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="card">
+            <h2>💾 Backup Data</h2>
+            <p style="color:#666; margin-bottom:15px;">
+                Pakua data yote ya shule kama faili moja. Ihifadhi mahali salama (Google Drive, USB, n.k.).
+            </p>
+
+            <div style="background:#eff6ff; border-left:4px solid #3b82f6; padding:12px; border-radius:6px; margin-bottom:15px; font-size:13px;">
+                <strong>Kumbuka:</strong> Backup inaisha ni pamoja na:
+                <ul style="margin-left:20px; margin-top:5px;">
+                    <li>Taarifa za shule</li>
+                    <li>Watumiaji (bila passwords — kwa usalama)</li>
+                    <li>Wanafunzi wote</li>
+                    <li>Madarasa na Streams</li>
+                    <li>Aina za michango</li>
+                    <li>Malipo yote</li>
+                    <li>Kumbukumbu za mfumo</li>
+                </ul>
+            </div>
+
+            <button class="btn btn-primary btn-block" id="backupBtn">📥 Pakua Backup Sasa</button>
+            <p id="backupStatus" style="margin-top:10px; text-align:center; font-size:13px;"></p>
+        </div>
+
+        <div class="card">
+            <h2>📊 Muhtasari wa Data</h2>
+            <div class="dashboard-grid">
+                <div class="stat-card card">
+                    <h3>Wanafunzi</h3>
+                    <p class="stat-value" id="statStudents">-</p>
+                </div>
+                <div class="stat-card card">
+                    <h3>Walimu</h3>
+                    <p class="stat-value" id="statTeachers">-</p>
+                </div>
+                <div class="stat-card card">
+                    <h3>Malipo</h3>
+                    <p class="stat-value" id="statPayments">-</p>
+                </div>
+                <div class="stat-card card">
+                    <h3>Madarasa</h3>
+                    <p class="stat-value" id="statClasses">-</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>📤 Export kwa Excel</h2>
+            <p style="color:#666; margin-bottom:15px;">
+                Pakua ripoti za malipo kwa Excel ili kuzichanganua zaidi.
+            </p>
+            <button class="btn btn-outline btn-block" id="exportPaymentsBtn">📊 Export Malipo Yote (Excel)</button>
+            <button class="btn btn-outline btn-block mt-3" id="exportStudentsBtn">📊 Export Wanafunzi (Excel)</button>
+        </div>
+
+        <div class="card">
+            <h2>⚠️ Restore Data</h2>
+            <div style="background:#fee2e2; border-left:4px solid #dc2626; padding:12px; border-radius:6px; margin-bottom:15px; font-size:13px;">
+                <strong>Onyo:</strong> Restore itaongeza data kutoka backup. Data iliyopo <strong>haitafutwa</strong> —
+                itakuwa merged (data iliyokuwepo itabaki, data mpya itaongezwa).
+            </div>
+            <input type="file" id="restoreFile" accept=".json" style="margin-bottom:10px;">
+            <button class="btn btn-warning btn-block" id="restoreBtn">📂 Restore kutoka Backup</button>
+            <p id="restoreStatus" style="margin-top:10px; text-align:center; font-size:13px;"></p>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/config.js"></script>
+    <script src="js/auth.js"></script>
+    <script>
+        const session = AuthService.requireRole(['administrator']);
+        if (session) {
+            document.getElementById('userName').textContent = session.full_name;
+            init();
+        }
+
+        async function init() {
+            const { data: school } = await supabaseClient
+                .from('schools').select('*').eq('school_id', session.school_id).single();
+            if (school) {
+                document.querySelectorAll('[data-school-name]').forEach(el => el.textContent = school.school_name);
+            }
+            await loadStats();
+        }
+
+        async function loadStats() {
+            try {
+                const [s, u, p, c] = await Promise.all([
+                    supabaseClient.from('students').select('*', { count: 'exact', head: true }).eq('school_id', session.school_id),
+                    supabaseClient.from('users').select('*', { count: 'exact', head: true }).eq('school_id', session.school_id),
+                    supabaseClient.from('payments').select('*', { count: 'exact', head: true }).eq('school_id', session.school_id).eq('is_deleted', false),
+                    supabaseClient.from('classes').select('*', { count: 'exact', head: true }).eq('school_id', session.school_id)
+                ]);
+                document.getElementById('statStudents').textContent = s.count || 0;
+                document.getElementById('statTeachers').textContent = u.count || 0;
+                document.getElementById('statPayments').textContent = p.count || 0;
+                document.getElementById('statClasses').textContent = c.count || 0;
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        // BACKUP
+        document.getElementById('backupBtn').onclick = async () => {
+            const btn = document.getElementById('backupBtn');
+            const status = document.getElementById('backupStatus');
+            btn.disabled = true;
+            btn.textContent = 'Inaandaa backup...';
+            status.textContent = '';
+
+            try {
+                const backup = {
+                    version: '1.0',
+                    exported_at: new Date().toISOString(),
+                    school_id: session.school_id,
+                    data: {}
+                };
+
+                // Pata data zote muhimu
+                const tables = ['schools', 'users', 'students', 'classes', 'streams', 'contributions', 'payments', 'audit_logs'];
+
+                for (const table of tables) {
+                    let query = supabaseClient.from(table).select('*');
+                    if (table === 'schools') {
+                        query = query.eq('school_id', session.school_id);
+                    } else if (table !== 'streams') {
+                        query = query.eq('school_id', session.school_id);
+                    } else {
+                        // Streams haina school_id — pata kwa class
+                        const { data: classes } = await supabaseClient
+                            .from('classes').select('class_id').eq('school_id', session.school_id);
+                        const classIds = (classes || []).map(c => c.class_id);
+                        if (classIds.length > 0) {
+                            query = query.in('class_id', classIds);
+                        }
+                    }
+                    const { data } = await query;
+                    backup.data[table] = data || [];
+                }
+
+                // Ficha passwords kwa usalama
+                if (backup.data.users) {
+                    backup.data.users = backup.data.users.map(u => {
+                        const { password_hash, ...safeUser } = u;
+                        return { ...safeUser, password_hash: 'HIDDEN_FOR_SECURITY' };
+                    });
+                }
+
+                // Pakua kama JSON
+                const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `backup_${session.school_id.substring(0, 8)}_${new Date().toISOString().split('T')[0]}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+
+                const totalRecords = Object.values(backup.data).reduce((sum, arr) => sum + arr.length, 0);
+                status.innerHTML = `✅ <strong style="color:#16a34a;">Backup imepakuliwa!</strong> Rekodi ${totalRecords} zimehifadhiwa.`;
+            } catch (e) {
+                status.innerHTML = `❌ <strong style="color:#dc2626;">Hitilafu:</strong> ${e.message}`;
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '📥 Pakua Backup Sasa';
+            }
+        };
+
+        // RESTORE
+        document.getElementById('restoreBtn').onclick = async () => {
+            const fileInput = document.getElementById('restoreFile');
+            const status = document.getElementById('restoreStatus');
+            const file = fileInput.files[0];
+
+            if (!file) {
+                alert('Chagua faili la backup kwanza');
+                return;
+            }
+
+            if (!confirm('Una uhakika? Data itaongezwa kwenye mfumo. Data iliyopo haitafutwa.')) return;
+
+            const btn = document.getElementById('restoreBtn');
+            btn.disabled = true;
+            btn.textContent = 'Inarejesha...';
+            status.textContent = '';
+
+            try {
+                const text = await file.text();
+                const backup = JSON.parse(text);
+
+                if (!backup.data) throw new Error('Faili la backup si sahihi');
+
+                let restored = 0;
+                let errors = [];
+
+                // Rejesha kwa mpangilio: schools → classes → streams → users → students → contributions → payments
+                const order = ['schools', 'classes', 'streams', 'users', 'students', 'contributions', 'payments', 'audit_logs'];
+
+                for (const table of order) {
+                    if (!backup.data[table] || backup.data[table].length === 0) continue;
+
+                    // Badilisha school_id kuwa ya shule ya sasa
+                    const records = backup.data[table].map(r => {
+                        if (r.school_id) r.school_id = session.school_id;
+                        // Futa password hash kama imefichwa
+                        if (table === 'users' && r.password_hash === 'HIDDEN_FOR_SECURITY') {
+                            r.password_hash = 'Reset123';  // password ya muda
+                        }
+                        return r;
+                    });
+
+                    // Upsert (kuzuia duplicates kwa ID)
+                    const { error } = await supabaseClient.from(table).upsert(records, { onConflict: 'id' });
+                    if (error) {
+                        // Jaribu insert kama upsert imeshindwa
+                        const { error: err2 } = await supabaseClient.from(table).insert(records);
+                        if (err2) errors.push(`${table}: ${err2.message}`);
+                        else restored += records.length;
+                    } else {
+                        restored += records.length;
+                    }
+                }
+
+                if (errors.length > 0) {
+                    status.innerHTML = `⚠️ <strong style="color:#ea580c;">Imerejesha kwa sehemu.</strong> ${restored} rekodi. Hitilafu: ${errors.join('; ')}`;
+                } else {
+                    status.innerHTML = `✅ <strong style="color:#16a34a;">Data imerejeshwa!</strong> Rekodi ${restored} zimeongezwa.`;
+                }
+
+                fileInput.value = '';
+                await loadStats();
+            } catch (e) {
+                status.innerHTML = `❌ <strong style="color:#dc2626;">Hitilafu:</strong> ${e.message}`;
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '📂 Restore kutoka Backup';
+            }
+        };
+
+        // EXPORT PAYMENTS
+        document.getElementById('exportPaymentsBtn').onclick = async () => {
+            try {
+                const { data: payments } = await supabaseClient
+                    .from('payments').select('*').eq('school_id', session.school_id).eq('is_deleted', false);
+
+                const { data: students } = await supabaseClient
+                    .from('students').select('*').eq('school_id', session.school_id);
+
+                const { data: contributions } = await supabaseClient
+                    .from('contributions').select('*').eq('school_id', session.school_id);
+
+                const { data: users } = await supabaseClient
+                    .from('users').select('user_id, full_name').eq('school_id', session.school_id);
+
+                const rows = (payments || []).map(p => {
+                    const student = students.find(s => s.student_id === p.student_id);
+                    const contrib = contributions.find(c => c.contribution_id === p.contribution_id);
+                    const teacher = users.find(u => u.user_id === p.teacher_id);
+                    return {
+                        'Transaction ID': p.transaction_id,
+                        'Tarehe': p.payment_date,
+                        'Mwanafunzi': student?.full_name || '',
+                        'Student Code': student?.student_code || '',
+                        'Mchango': contrib?.contribution_name || '',
+                        'Kiasi (Tsh)': Number(p.amount),
+                        'Mwalimu': teacher?.full_name || '',
+                        'Mara': p.frequency || ''
+                    };
+                });
+
+                const ws = XLSX.utils.json_to_sheet(rows);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, 'Malipo');
+                XLSX.writeFile(wb, `malipo_${new Date().toISOString().split('T')[0]}.xlsx`);
+            } catch (e) {
+                alert('Hitilafu: ' + e.message);
+            }
+        };
+
+        // EXPORT STUDENTS
+        document.getElementById('exportStudentsBtn').onclick = async () => {
+            try {
+                const { data: students } = await supabaseClient
+                    .from('students').select('*').eq('school_id', session.school_id);
+                const { data: classes } = await supabaseClient
+                    .from('classes').select('*').eq('school_id', session.school_id);
+                const { data: streams } = await supabaseClient.from('streams').select('*');
+
+                const rows = (students || []).map(s => {
+                    const cls = classes.find(c => c.class_id === s.class_id);
+                    const strm = streams.find(x => x.stream_id === s.stream_id);
+                    return {
+                        'Student ID': s.student_code,
+                        'Jina': s.full_name,
+                        'Darasa': cls?.class_name || '',
+                        'Stream': strm?.stream_name || '',
+                        'Jinsia': s.gender || '',
+                        'Mzazi': s.parent_name || '',
+                        'Simu': s.parent_phone || '',
+                        'Hali': s.status
+                    };
+                });
+
+                const ws = XLSX.utils.json_to_sheet(rows);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, 'Wanafunzi');
+                XLSX.writeFile(wb, `wanafunzi_${new Date().toISOString().split('T')[0]}.xlsx`);
+            } catch (e) {
+                alert('Hitilafu: ' + e.message);
+            }
+        };
+
+        document.getElementById('homeBtn').onclick = () => {
+            window.location.href = 'admin-dashboard.html';
+        };
+        document.getElementById('logoutBtn').onclick = () => AuthService.logout();
+    </script>
+</body>
+</html>
