@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="sw">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#1e40af">
+    <title>Madarasa na Streams</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-brand">
+            <img src="icons/icon-192.png" alt="Logo" class="nav-logo" onerror="this.style.display='none'">
+            <span data-school-name>SHULE YA MSINGI NGARENARO</span>
+        </div>
+        <div class="nav-user">
+            <span id="userName">...</span>
+            <button id="homeBtn" class="btn btn-sm">← Nyumbani</button>
+            <button id="logoutBtn" class="btn btn-sm">Ondoka</button>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="card">
+            <div class="flex-between mb-3">
+                <h2>Madarasa na Streams</h2>
+                <button class="btn btn-success btn-sm" id="addBtn">+ Ongeza Darasa</button>
+            </div>
+
+            <div id="messageBox" style="display:none;"></div>
+            <div id="classList"></div>
+        </div>
+    </div>
+
+    <!-- Add Class Modal -->
+    <div id="addModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:1000; padding:20px; overflow-y:auto;">
+        <div style="background:white; border-radius:10px; padding:25px; max-width:500px; margin:40px auto;">
+            <h3 style="color:#1e40af; margin-bottom:15px;">Ongeza Darasa</h3>
+            <div class="form-group">
+                <label>Jina la Darasa *</label>
+                <input type="text" id="className" placeholder="mfano: Grade 8">
+            </div>
+            <div class="form-group">
+                <label>Streams (tenganisha kwa koma)</label>
+                <input type="text" id="streams" value="A,B,C,D,E,F">
+            </div>
+            <div id="err" class="error-message" style="display:none;"></div>
+            <div class="flex gap-2">
+                <button class="btn btn-primary" id="saveBtn">Hifadhi</button>
+                <button class="btn btn-outline" id="cancelBtn">Ghairi</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Stream Modal -->
+    <div id="addStreamModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:1000; padding:20px; overflow-y:auto;">
+        <div style="background:white; border-radius:10px; padding:25px; max-width:400px; margin:40px auto;">
+            <h3 style="color:#1e40af; margin-bottom:15px;">Ongeza Stream</h3>
+            <input type="hidden" id="streamClassId">
+            <div class="form-group">
+                <label>Jina la Stream *</label>
+                <input type="text" id="streamName" placeholder="mfano: G">
+            </div>
+            <div id="streamErr" class="error-message" style="display:none;"></div>
+            <div class="flex gap-2">
+                <button class="btn btn-primary" id="saveStreamBtn">Hifadhi</button>
+                <button class="btn btn-outline" id="cancelStreamBtn">Ghairi</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/config.js"></script>
+    <script src="js/auth.js"></script>
+    <script>
+        const session = AuthService.requireRole(['administrator', 'head_teacher']);
+        if (session) {
+            document.getElementById('userName').textContent = session.full_name;
+            init();
+        }
+
+        let classes = [];
+        let streams = [];
+
+        async function init() {
+            const { data: school } = await supabaseClient
+                .from('schools').select('*').eq('school_id', session.school_id).single();
+            if (school) {
+                document.querySelectorAll('[data-school-name]').forEach(el => el.textContent = school.school_name);
+            }
+            await loadClasses();
+        }
+
+        async function loadClasses() {
+            const [c, s] = await Promise.all([
+                supabaseClient.from('classes').select('*').eq('school_id', session.school_id).order('display_order'),
+                supabaseClient.from('streams').select('*')
+            ]);
+            classes = c.data || [];
+            streams = s.data || [];
+            render();
+        }
+
+        function render() {
+            const list = document.getElementById('classList');
+            list.innerHTML = '';
+
+            if (classes.length === 0) {
+                list.innerHTML = '<p class="text-center" style="padding:20px;color:#666;">Hakuna madarasa. Bonyeza "+ Ongeza Darasa".</p>';
+                return;
+            }
+
+            classes.forEach(c => {
+                const clsStreams = streams.filter(s => s.class_id === c.class_id);
+
+                const div = document.createElement('div');
+                div.style.cssText = 'border:1px solid #e5e7eb; border-radius:8px; padding:15px; margin-bottom:12px; background:#f9fafb;';
+                div.innerHTML = `
+                    <div class="flex-between" style="flex-wrap:wrap; gap:8px;">
+                        <div>
+                            <strong style="font-size:16px; color:#1e40af;">${c.class_name}</strong>
+                            <span style="color:#666; font-size:13px; margin-left:10px;">(${clsStreams.length} streams)</span>
+                        </div>
+                        <div class="flex gap-2">
+                            <button class="btn btn-sm btn-primary" onclick="openAddStream('${c.class_id}')">+ Stream</button>
+                            <button class="btn btn-sm btn-danger" onclick="deleteClass('${c.class_id}')">Futa Darasa</button>
+                        </div>
+                    </div>
+                    <div style="margin-top:10px;">
+                        ${clsStreams.length > 0 ? clsStreams.map(s => `
+                            <span style="display:inline-flex; align-items:center; gap:6px; background:white; border:1px solid #d1d5db; border-radius:6px; padding:5px 10px; margin:3px; font-size:13px;">
+                                ${s.stream_name}
+                                <button onclick="deleteStream('${s.stream_id}')" style="background:none; border:none; color:#dc2626; cursor:pointer; font-weight:bold; padding:0; font-size:14px;">×</button>
+                            </span>
+                        `).join('') : '<span style="color:#999; font-size:13px;">Hakuna streams</span>'}
+                    </div>`;
+                list.appendChild(div);
+            });
+        }
+
+        function showMessage(type, text) {
+            const box = document.getElementById('messageBox');
+            box.className = type === 'error' ? 'error-message' : 'success-message';
+            box.textContent = text;
+            box.style.display = 'block';
+            setTimeout(() => box.style.display = 'none', 5000);
+        }
+
+        // Add Class
+        document.getElementById('addBtn').onclick = () => {
+            document.getElementById('className').value = '';
+            document.getElementById('streams').value = 'A,B,C,D,E,F';
+            document.getElementById('err').style.display = 'none';
+            document.getElementById('addModal').style.display = 'block';
+        };
+        document.getElementById('cancelBtn').onclick = () => document.getElementById('addModal').style.display = 'none';
+
+        document.getElementById('saveBtn').onclick = async () => {
+            const err = document.getElementById('err');
+            err.style.display = 'none';
+            const name = document.getElementById('className').value.trim();
+            if (!name) { err.textContent = 'Weka jina la darasa'; err.style.display = 'block'; return; }
+
+            try {
+                // Pata display_order ya mwisho
+                const maxOrder = classes.reduce((m, c) => Math.max(m, c.display_order || 0), 0);
+
+                const { data: cls, error } = await supabaseClient
+                    .from('classes')
+                    .insert({
+                        school_id: session.school_id,
+                        class_name: name,
+                        display_order: maxOrder + 1
+                    })
+                    .select()
+                    .single();
+
+                if (error) throw error;
+
+                // Unda streams
+                const streamNames = document.getElementById('streams').value
+                    .split(',').map(s => s.trim()).filter(Boolean);
+
+                if (streamNames.length > 0) {
+                    const { error: strErr } = await supabaseClient.from('streams').insert(
+                        streamNames.map(sn => ({ class_id: cls.class_id, stream_name: sn }))
+                    );
+                    if (strErr) throw strErr;
+                }
+
+                document.getElementById('addModal').style.display = 'none';
+                showMessage('success', 'Darasa limeongezwa!');
+                await loadClasses();
+            } catch (e) {
+                err.textContent = e.message;
+                err.style.display = 'block';
+            }
+        };
+
+        // Add Stream
+        window.openAddStream = (classId) => {
+            document.getElementById('streamClassId').value = classId;
+            document.getElementById('streamName').value = '';
+            document.getElementById('streamErr').style.display = 'none';
+            document.getElementById('addStreamModal').style.display = 'block';
+        };
+        document.getElementById('cancelStreamBtn').onclick = () => document.getElementById('addStreamModal').style.display = 'none';
+
+        document.getElementById('saveStreamBtn').onclick = async () => {
+            const err = document.getElementById('streamErr');
+            err.style.display = 'none';
+            const name = document.getElementById('streamName').value.trim();
+            const classId = document.getElementById('streamClassId').value;
+            if (!name) { err.textContent = 'Weka jina la stream'; err.style.display = 'block'; return; }
+
+            try {
+                const { error } = await supabaseClient.from('streams').insert({
+                    class_id: classId,
+                    stream_name: name
+                });
+                if (error) throw error;
+
+                document.getElementById('addStreamModal').style.display = 'none';
+                showMessage('success', 'Stream limeongezwa!');
+                await loadClasses();
+            } catch (e) {
+                err.textContent = e.message;
+                err.style.display = 'block';
+            }
+        };
+
+        // Delete
+        window.deleteClass = async (id) => {
+            if (!confirm('Futa darasa hili? Streams zote zitafutwa pia.')) return;
+            const { error } = await supabaseClient.from('classes').delete().eq('class_id', id);
+            if (error) { alert('Hitilafu: ' + error.message); return; }
+            showMessage('success', 'Darasa limefutwa');
+            await loadClasses();
+        };
+
+        window.deleteStream = async (id) => {
+            if (!confirm('Futa stream hii?')) return;
+            const { error } = await supabaseClient.from('streams').delete().eq('stream_id', id);
+            if (error) { alert('Hitilafu: ' + error.message); return; }
+            showMessage('success', 'Stream limefutwa');
+            await loadClasses();
+        };
+
+        // Nav
+        document.getElementById('homeBtn').onclick = () => {
+            window.location.href = session.role === 'administrator' ? 'admin-dashboard.html' : 'head-dashboard.html';
+        };
+        document.getElementById('logoutBtn').onclick = () => AuthService.logout();
+    </script>
+</body>
+</html>
