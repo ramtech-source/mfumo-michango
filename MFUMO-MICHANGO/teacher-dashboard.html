@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="sw">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#1e40af">
+    <title>Dashibodi ya Mwalimu</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-brand">
+            <img src="icons/icon-192.png" alt="Logo" class="nav-logo" onerror="this.style.display='none'">
+            <span data-school-name>SHULE YA MSINGI NGARENARO</span>
+        </div>
+        <div class="nav-user">
+            <span id="userName">...</span>
+            <button id="changePassBtn" class="btn btn-sm">Badilisha Nenosiri</button>
+            <button id="logoutBtn" class="btn btn-sm">Ondoka</button>
+        </div>
+    </nav>
+
+    <div class="container">
+        <!-- Status Bar -->
+        <div class="status-bar">
+            <span class="status-badge">Mtandao: <strong id="netText">Upo</strong></span>
+            <button class="btn btn-sm btn-outline" id="homeBtn">← Nyumbani</button>
+        </div>
+
+        <!-- Dashboard Cards -->
+        <div class="dashboard-grid">
+            <div class="stat-card card">
+                <h3>Makusanyo ya Leo</h3>
+                <p class="stat-value" id="todayTotal">Tsh 0</p>
+            </div>
+            <div class="stat-card card">
+                <h3>Waliochangia</h3>
+                <p class="stat-value" id="paidCount">0</p>
+            </div>
+            <div class="stat-card card">
+                <h3>Hawajachangia</h3>
+                <p class="stat-value" id="unpaidCount">0</p>
+            </div>
+            <div class="stat-card card">
+                <h3>Jumla ya Wanafunzi</h3>
+                <p class="stat-value" id="totalStudents">0</p>
+            </div>
+        </div>
+
+        <!-- Payment Entry -->
+        <div class="card">
+            <h2>Ingiza Makusanyo</h2>
+            <form id="paymentForm">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Tarehe</label>
+                        <input type="date" id="paymentDate" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Darasa</label>
+                        <select id="classSelect" required>
+                            <option value="">-- Chagua Darasa --</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Stream</label>
+                        <select id="streamSelect" required>
+                            <option value="">-- Chagua Stream --</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Aina ya Mchango</label>
+                        <select id="contributionSelect" required>
+                            <option value="">-- Chagua Mchango --</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="student-list-container">
+                    <h3>Orodha ya Wanafunzi</h3>
+                    <div class="search-box">
+                        <input type="text" id="studentSearch" placeholder="Tafuta mwanafunzi...">
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table" id="studentTable">
+                            <thead>
+                                <tr>
+                                    <th>No.</th>
+                                    <th>Mwanafunzi</th>
+                                    <th>Kiasi</th>
+                                    <th>Hali</th>
+                                    <th>Kitendo</th>
+                                </tr>
+                            </thead>
+                            <tbody id="studentTbody">
+                                <tr><td colspan="5" class="text-center">Chagua darasa na stream</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="summary-box" id="summaryBox" style="display:none;">
+                    <h3>MUHTASARI WA MAKUSANYO</h3>
+                    <p><span>Tarehe:</span> <span id="summaryDate"></span></p>
+                    <p><span>Darasa:</span> <span id="summaryClass"></span></p>
+                    <p><span>Stream:</span> <span id="summaryStream"></span></p>
+                    <p><span>Wanafunzi:</span> <span id="summaryTotal">0</span></p>
+                    <p><span>Waliochangia:</span> <span id="summaryPaid">0</span></p>
+                    <p><span>Hawajachangia:</span> <span id="summaryUnpaid">0</span></p>
+                    <p class="total-line"><span>Jumla:</span> <span id="summaryAmount">Tsh 0</span></p>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Change Password Modal -->
+    <div id="passModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:1000; padding:20px; overflow-y:auto;">
+        <div style="background:white; border-radius:10px; padding:25px; max-width:400px; margin:40px auto;">
+            <h3 style="color:#1e40af; margin-bottom:15px;">Badilisha Nenosiri</h3>
+            <div class="form-group">
+                <label>Nenosiri la Sasa</label>
+                <input type="password" id="oldPass">
+            </div>
+            <div class="form-group">
+                <label>Nenosiri Jipya</label>
+                <input type="password" id="newPass">
+            </div>
+            <div id="passError" class="error-message" style="display:none;"></div>
+            <div class="flex gap-2">
+                <button class="btn btn-primary" id="savePassBtn">Hifadhi</button>
+                <button class="btn btn-outline" id="cancelPassBtn">Ghairi</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/config.js"></script>
+    <script src="js/auth.js"></script>
+    <script>
+        const session = AuthService.requireAuth();
+        if (session) {
+            document.getElementById('userName').textContent = session.full_name;
+            initApp();
+        }
+
+        let currentStudents = [];
+        let currentPayments = [];
+
+        async function initApp() {
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('paymentDate').value = today;
+            document.getElementById('summaryDate').textContent = today;
+
+            // Load school
+            try {
+                const { data: school } = await supabaseClient
+                    .from('schools')
+                    .select('*')
+                    .eq('school_id', session.school_id)
+                    .single();
+                if (school) {
+                    document.querySelectorAll('[data-school-name]').forEach(el => el.textContent = school.school_name);
+                }
+            } catch (e) { console.warn(e); }
+
+            await loadClasses();
+            await loadContributions();
+
+            // Update network status
+            updateNet();
+            window.addEventListener('online', updateNet);
+            window.addEventListener('offline', updateNet);
+        }
+
+        function updateNet() {
+            document.getElementById('netText').textContent = navigator.onLine ? 'Upo' : 'Haupo';
+        }
+
+        async function loadClasses() {
+            const { data } = await supabaseClient
+                .from('classes')
+                .select('*')
+                .eq('school_id', session.school_id)
+                .order('display_order');
+            const sel = document.getElementById('classSelect');
+            sel.innerHTML = '<option value="">-- Chagua Darasa --</option>';
+            (data || []).forEach(c => {
+                const o = document.createElement('option');
+                o.value = c.class_id;
+                o.textContent = c.class_name;
+                sel.appendChild(o);
+            });
+        }
+
+        async function loadStreams() {
+            const classId = document.getElementById('classSelect').value;
+            const sel = document.getElementById('streamSelect');
+            sel.innerHTML = '<option value="">-- Chagua Stream --</option>';
+            if (!classId) return;
+            const { data } = await supabaseClient
+                .from('streams')
+                .select('*')
+                .eq('class_id', classId)
+                .order('stream_name');
+            (data || []).forEach(s => {
+                const o = document.createElement('option');
+                o.value = s.stream_id;
+                o.textContent = s.stream_name;
+                sel.appendChild(o);
+            });
+        }
+
+        async function loadContributions() {
+            const { data } = await supabaseClient
+                .from('contributions')
+                .select('*')
+                .eq('school_id', session.school_id)
+                .eq('status', 'active');
+            const sel = document.getElementById('contributionSelect');
+            sel.innerHTML = '<option value="">-- Chagua Mchango --</option>';
+            (data || []).forEach(c => {
+                const o = document.createElement('option');
+                o.value = c.contribution_id;
+                o.textContent = `${c.contribution_name} (Tsh ${Number(c.default_amount).toLocaleString()})`;
+                o.dataset.amount = c.default_amount;
+                o.dataset.frequency = c.frequency;
+                sel.appendChild(o);
+            });
+        }
+
+        async function loadStudents() {
+            const classId = document.getElementById('classSelect').value;
+            const streamId = document.getElementById('streamSelect').value;
+            const date = document.getElementById('paymentDate').value;
+            if (!classId || !streamId) {
+                document.getElementById('studentTbody').innerHTML =
+                    '<tr><td colspan="5" class="text-center">Chagua darasa na stream</td></tr>';
+                return;
+            }
+
+            document.getElementById('studentTbody').innerHTML =
+                '<tr><td colspan="5" class="text-center">Inapakia...</td></tr>';
+
+            // Pata wanafunzi
+            const { data: students } = await supabaseClient
+                .from('students')
+                .select('*')
+                .eq('school_id', session.school_id)
+                .eq('class_id', classId)
+                .eq('stream_id', streamId)
+                .eq('status', 'active')
+                .order('full_name');
+
+            currentStudents = students || [];
+
+            // Pata malipo ya siku
+            const { data: payments } = await supabaseClient
+                .from('payments')
+                .select('*')
+                .eq('school_id', session.school_id)
+                .eq('payment_date', date)
+                .eq('is_deleted', false);
+
+            const filteredPayments = (payments || []).filter(p =>
+                currentStudents.some(s => s.student_id === p.student_id)
+            );
+            currentPayments = filteredPayments;
+
+            renderStudents();
+        }
+
+        function renderStudents() {
+            const tbody = document.getElementById('studentTbody');
+            const paidIds = new Set(currentPayments.map(p => p.student_id));
+
+            if (currentStudents.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center">Hakuna wanafunzi kwenye darasa hili</td></tr>';
+                updateSummary();
+                return;
+            }
+
+            tbody.innerHTML = '';
+            currentStudents.forEach((st, i) => {
+                const isPaid = paidIds.has(st.student_id);
+                const pmt = currentPayments.find(p => p.student_id === st.student_id);
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${i + 1}</td>
+                    <td>${st.full_name}<br><small style="color:#666">${st.student_code}</small></td>
+                    <td>${isPaid ? 'Tsh ' + Number(pmt.amount).toLocaleString() : '-'}</td>
+                    <td><span class="badge ${isPaid ? 'badge-success' : 'badge-warning'}">${isPaid ? 'Amelipa' : 'Hajalipa'}</span></td>
+                    <td>${!isPaid
+                        ? `<button class="btn btn-sm btn-primary pay-btn" data-sid="${st.student_id}" data-sname="${st.full_name}">Rekodi</button>`
+                        : `<span style="color:#16a34a;">✓</span>`}
+                    </td>`;
+                tbody.appendChild(tr);
+            });
+
+            // Attach events
+            document.querySelectorAll('.pay-btn').forEach(b => b.onclick = () => handlePay(b));
+
+            updateSummary();
+        }
+
+        function updateSummary() {
+            const paidIds = new Set(currentPayments.map(p => p.student_id));
+            const total = currentPayments.reduce((s, p) => s + Number(p.amount), 0);
+            const cls = document.getElementById('classSelect').selectedOptions[0]?.textContent || '';
+            const strm = document.getElementById('streamSelect').selectedOptions[0]?.textContent || '';
+
+            document.getElementById('summaryBox').style.display = 'block';
+            document.getElementById('summaryDate').textContent = document.getElementById('paymentDate').value;
+            document.getElementById('summaryClass').textContent = cls;
+            document.getElementById('summaryStream').textContent = strm;
+            document.getElementById('summaryTotal').textContent = currentStudents.length;
+            document.getElementById('summaryPaid').textContent = paidIds.size;
+            document.getElementById('summaryUnpaid').textContent = currentStudents.length - paidIds.size;
+            document.getElementById('summaryAmount').textContent = 'Tsh ' + total.toLocaleString();
+
+            document.getElementById('todayTotal').textContent = 'Tsh ' + total.toLocaleString();
+            document.getElementById('paidCount').textContent = paidIds.size;
+            document.getElementById('unpaidCount').textContent = currentStudents.length - paidIds.size;
+            document.getElementById('totalStudents').textContent = currentStudents.length;
+        }
+
+        async function handlePay(btn) {
+            const sid = btn.dataset.sid;
+            const sname = btn.dataset.sname;
+            const csel = document.getElementById('contributionSelect');
+            const cid = csel.value;
+            if (!cid) { alert('Chagua aina ya mchango kwanza'); return; }
+            const defAmt = csel.selectedOptions[0]?.dataset.amount || '500';
+            const freq = csel.selectedOptions[0]?.dataset.frequency || 'daily';
+            const input = prompt(`Kiasi kwa ${sname} (Tsh):`, defAmt);
+            if (input === null) return;
+            const amt = Number(input);
+            if (isNaN(amt) || amt <= 0) { alert('Kiasi si sahihi'); return; }
+
+            // Unda transaction ID
+            const txnId = 'TXN-' + Date.now() + '-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+
+            try {
+                const { error } = await supabaseClient.from('payments').insert({
+                    transaction_id: txnId,
+                    school_id: session.school_id,
+                    student_id: sid,
+                    contribution_id: cid,
+                    amount: amt,
+                    payment_date: document.getElementById('paymentDate').value,
+                    teacher_id: session.user_id,
+                    frequency: freq,
+                    sync_status: 'synced'
+                });
+
+                if (error) throw error;
+
+                alert('✅ Malipo yamehifadhiwa!\n\nTransaction: ' + txnId);
+                await loadStudents();
+
+            } catch (e) {
+                alert('❌ Hitilafu: ' + e.message);
+            }
+        }
+
+        // Events
+        document.getElementById('classSelect').addEventListener('change', async () => {
+            await loadStreams();
+            document.getElementById('studentTbody').innerHTML =
+                '<tr><td colspan="5" class="text-center">Chagua stream</td></tr>';
+        });
+        document.getElementById('streamSelect').addEventListener('change', loadStudents);
+        document.getElementById('paymentDate').addEventListener('change', loadStudents);
+        document.getElementById('studentSearch').addEventListener('input', (e) => {
+            const term = e.target.value.toLowerCase();
+            document.querySelectorAll('#studentTbody tr').forEach(tr => {
+                tr.style.display = tr.textContent.toLowerCase().includes(term) ? '' : 'none';
+            });
+        });
+
+        document.getElementById('logoutBtn').onclick = () => AuthService.logout();
+        document.getElementById('homeBtn').onclick = () => {
+            window.location.href = session.role === 'administrator' ? 'admin-dashboard.html' : 'index.html';
+        };
+
+        // Change password
+        document.getElementById('changePassBtn').onclick = () => {
+            document.getElementById('passModal').style.display = 'block';
+            document.getElementById('passError').style.display = 'none';
+            document.getElementById('oldPass').value = '';
+            document.getElementById('newPass').value = '';
+        };
+        document.getElementById('cancelPassBtn').onclick = () => {
+            document.getElementById('passModal').style.display = 'none';
+        };
+        document.getElementById('savePassBtn').onclick = async () => {
+            const oldP = document.getElementById('oldPass').value;
+            const newP = document.getElementById('newPass').value;
+            const errDiv = document.getElementById('passError');
+            try {
+                await AuthService.changePassword(oldP, newP);
+                alert('✅ Nenosiri limebadilishwa!');
+                document.getElementById('passModal').style.display = 'none';
+            } catch (e) {
+                errDiv.textContent = e.message;
+                errDiv.style.display = 'block';
+            }
+        };
+
+        // Register SW
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js').catch(err => console.log('SW:', err));
+        }
+    </script>
+</body>
+</html>

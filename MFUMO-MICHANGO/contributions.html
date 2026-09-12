@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="sw">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#1e40af">
+    <title>Aina za Michango</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-brand">
+            <img src="icons/icon-192.png" alt="Logo" class="nav-logo" onerror="this.style.display='none'">
+            <span data-school-name>SHULE YA MSINGI NGARENARO</span>
+        </div>
+        <div class="nav-user">
+            <span id="userName">...</span>
+            <button id="homeBtn" class="btn btn-sm">← Nyumbani</button>
+            <button id="logoutBtn" class="btn btn-sm">Ondoka</button>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="card">
+            <div class="flex-between mb-3">
+                <h2>Aina za Michango</h2>
+                <button class="btn btn-success btn-sm" id="addBtn">+ Ongeza Mchango</button>
+            </div>
+
+            <div id="messageBox" style="display:none;"></div>
+
+            <div class="table-responsive">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>No.</th>
+                            <th>Jina la Mchango</th>
+                            <th>Kiasi (Tsh)</th>
+                            <th>Mara ya Malipo</th>
+                            <th>Hali</th>
+                            <th>Kitendo</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbody">
+                        <tr><td colspan="6" class="text-center">Inapakia...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add/Edit Modal -->
+    <div id="modal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:1000; padding:20px; overflow-y:auto;">
+        <div style="background:white; border-radius:10px; padding:25px; max-width:500px; margin:40px auto;">
+            <h3 id="modalTitle" style="color:#1e40af; margin-bottom:15px;">Ongeza Mchango</h3>
+            <input type="hidden" id="editId">
+            <div class="form-group">
+                <label>Jina la Mchango *</label>
+                <input type="text" id="name" placeholder="mfano: Chakula cha Mchana">
+            </div>
+            <div class="form-group">
+                <label>Kiasi cha Default (Tsh)</label>
+                <input type="number" id="amount" value="500" min="0">
+            </div>
+            <div class="form-group">
+                <label>Mara ya Malipo *</label>
+                <select id="frequency">
+                    <option value="daily">Kila Siku</option>
+                    <option value="weekly">Kila Wiki</option>
+                    <option value="monthly">Kila Mwezi</option>
+                    <option value="termly">Kila Term</option>
+                    <option value="annual">Kila Mwaka</option>
+                    <option value="other">Nyingine</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Hali</label>
+                <select id="status">
+                    <option value="active">Hai</option>
+                    <option value="inactive">Haifanyi kazi</option>
+                </select>
+            </div>
+            <div id="err" class="error-message" style="display:none;"></div>
+            <div class="flex gap-2">
+                <button class="btn btn-primary" id="saveBtn">Hifadhi</button>
+                <button class="btn btn-outline" id="cancelBtn">Ghairi</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/config.js"></script>
+    <script src="js/auth.js"></script>
+    <script>
+        const session = AuthService.requireRole(['administrator', 'head_teacher']);
+        if (session) {
+            document.getElementById('userName').textContent = session.full_name;
+            init();
+        }
+
+        let contributions = [];
+
+        const freqLabels = {
+            daily: 'Kila Siku',
+            weekly: 'Kila Wiki',
+            monthly: 'Kila Mwezi',
+            termly: 'Kila Term',
+            annual: 'Kila Mwaka',
+            other: 'Nyingine'
+        };
+
+        async function init() {
+            const { data: school } = await supabaseClient
+                .from('schools').select('*').eq('school_id', session.school_id).single();
+            if (school) {
+                document.querySelectorAll('[data-school-name]').forEach(el => el.textContent = school.school_name);
+            }
+            await loadData();
+        }
+
+        async function loadData() {
+            const { data, error } = await supabaseClient
+                .from('contributions')
+                .select('*')
+                .eq('school_id', session.school_id)
+                .order('contribution_name');
+
+            if (error) { showMessage('error', error.message); return; }
+            contributions = data || [];
+            render();
+        }
+
+        function render() {
+            const tbody = document.getElementById('tbody');
+            if (contributions.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center">Hakuna michango. Bonyeza "+ Ongeza Mchango".</td></tr>';
+                return;
+            }
+            tbody.innerHTML = '';
+            contributions.forEach((c, i) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${i + 1}</td>
+                    <td><strong>${c.contribution_name}</strong></td>
+                    <td>Tsh ${Number(c.default_amount).toLocaleString()}</td>
+                    <td>${freqLabels[c.frequency] || c.frequency}</td>
+                    <td><span class="badge ${c.status === 'active' ? 'badge-success' : 'badge-danger'}">${c.status === 'active' ? 'Hai' : 'Haifanyi'}</span></td>
+                    <td style="white-space:nowrap;">
+                        <button class="btn btn-sm btn-outline" onclick="editItem('${c.contribution_id}')">Hariri</button>
+                        <button class="btn btn-sm btn-danger" onclick="deleteItem('${c.contribution_id}')">Futa</button>
+                    </td>`;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function showMessage(type, text) {
+            const box = document.getElementById('messageBox');
+            box.className = type === 'error' ? 'error-message' : 'success-message';
+            box.textContent = text;
+            box.style.display = 'block';
+            setTimeout(() => box.style.display = 'none', 5000);
+        }
+
+        document.getElementById('addBtn').onclick = () => {
+            document.getElementById('modalTitle').textContent = 'Ongeza Mchango';
+            document.getElementById('editId').value = '';
+            document.getElementById('name').value = '';
+            document.getElementById('amount').value = '500';
+            document.getElementById('frequency').value = 'daily';
+            document.getElementById('status').value = 'active';
+            document.getElementById('err').style.display = 'none';
+            document.getElementById('modal').style.display = 'block';
+        };
+
+        document.getElementById('cancelBtn').onclick = () => document.getElementById('modal').style.display = 'none';
+
+        window.editItem = (id) => {
+            const c = contributions.find(x => x.contribution_id === id);
+            if (!c) return;
+            document.getElementById('modalTitle').textContent = 'Hariri Mchango';
+            document.getElementById('editId').value = c.contribution_id;
+            document.getElementById('name').value = c.contribution_name;
+            document.getElementById('amount').value = c.default_amount;
+            document.getElementById('frequency').value = c.frequency;
+            document.getElementById('status').value = c.status;
+            document.getElementById('err').style.display = 'none';
+            document.getElementById('modal').style.display = 'block';
+        };
+
+        document.getElementById('saveBtn').onclick = async () => {
+            const err = document.getElementById('err');
+            err.style.display = 'none';
+
+            const name = document.getElementById('name').value.trim();
+            if (!name) { err.textContent = 'Weka jina la mchango'; err.style.display = 'block'; return; }
+
+            const data = {
+                school_id: session.school_id,
+                contribution_name: name,
+                default_amount: Number(document.getElementById('amount').value) || 0,
+                frequency: document.getElementById('frequency').value,
+                status: document.getElementById('status').value
+            };
+
+            const editId = document.getElementById('editId').value;
+            try {
+                let result;
+                if (editId) {
+                    result = await supabaseClient.from('contributions').update(data).eq('contribution_id', editId);
+                } else {
+                    result = await supabaseClient.from('contributions').insert(data);
+                }
+                if (result.error) throw result.error;
+
+                document.getElementById('modal').style.display = 'none';
+                showMessage('success', editId ? 'Mchango umehaririwa!' : 'Mchango umeongezwa!');
+                await loadData();
+            } catch (e) {
+                err.textContent = e.message;
+                err.style.display = 'block';
+            }
+        };
+
+        window.deleteItem = async (id) => {
+            if (!confirm('Futa mchango huu?')) return;
+            const { error } = await supabaseClient.from('contributions').delete().eq('contribution_id', id);
+            if (error) { alert('Hitilafu: ' + error.message); return; }
+            showMessage('success', 'Mchango umefutwa');
+            await loadData();
+        };
+
+        document.getElementById('homeBtn').onclick = () => {
+            window.location.href = session.role === 'administrator' ? 'admin-dashboard.html' : 'head-dashboard.html';
+        };
+        document.getElementById('logoutBtn').onclick = () => AuthService.logout();
+    </script>
+</body>
+</html>

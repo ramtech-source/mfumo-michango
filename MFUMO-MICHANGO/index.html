@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="sw">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#1e40af">
+    <title>Ingia - Mfumo wa Michango</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body class="login-page">
+    <div class="login-container">
+        <div class="login-card">
+            <div class="login-header">
+                <div class="logo-wrapper">
+                    <img src="icons/icon-192.png" alt="Logo" class="school-logo" id="schoolLogo" onerror="this.style.display='none'">
+                </div>
+                <h1 data-school-name>SHULE YA MSINGI NGARENARO</h1>
+                <h2>MFUMO WA UKUSANYAJI WA MICHANGO</h2>
+            </div>
+
+            <form id="loginForm" class="login-form">
+                <div class="form-group">
+                    <label for="username">Jina la Mtumiaji</label>
+                    <input type="text" id="username" name="username"
+                           required autocomplete="username"
+                           placeholder="Weka jina la mtumiaji">
+                </div>
+
+                <div class="form-group">
+                    <label for="password">Nenosiri</label>
+                    <input type="password" id="password" name="password"
+                           required autocomplete="current-password"
+                           placeholder="Weka nenosiri">
+                </div>
+
+                <div id="loginError" class="error-message" style="display:none;"></div>
+
+                <button type="submit" class="btn btn-primary btn-block" id="loginBtn">
+                    INGIA
+                </button>
+            </form>
+
+            <div class="login-footer">
+                <p>&copy; 2026 <span data-school-name>SHULE YA MSINGI NGARENARO</span></p>
+                <p class="version">Toleo 1.0.0</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/config.js"></script>
+    <script src="js/auth.js"></script>
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById('loginBtn');
+            const errorDiv = document.getElementById('loginError');
+
+            btn.disabled = true;
+            btn.textContent = 'Inaingia...';
+            errorDiv.style.display = 'none';
+
+            try {
+                const username = document.getElementById('username').value.trim();
+                const password = document.getElementById('password').value;
+
+                const session = await AuthService.login(username, password);
+
+                const dashboards = {
+                    administrator: 'admin-dashboard.html',
+                    head_teacher: 'head-dashboard.html',
+                    deputy_head_teacher: 'head-dashboard.html',
+                    teacher: 'teacher-dashboard.html'
+                };
+                window.location.href = dashboards[session.role] || 'teacher-dashboard.html';
+
+            } catch (err) {
+                errorDiv.textContent = err.message;
+                errorDiv.style.display = 'block';
+                btn.disabled = false;
+                btn.textContent = 'INGIA';
+            }
+        });
+    </script>
+</body>
+</html>

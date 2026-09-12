@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="sw">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#1e40af">
+    <title>Walimu na Watumiaji</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-brand">
+            <img src="icons/icon-192.png" alt="Logo" class="nav-logo" onerror="this.style.display='none'">
+            <span data-school-name>SHULE YA MSINGI NGARENARO</span>
+        </div>
+        <div class="nav-user">
+            <span id="userName">...</span>
+            <button id="homeBtn" class="btn btn-sm">← Nyumbani</button>
+            <button id="logoutBtn" class="btn btn-sm">Ondoka</button>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="card">
+            <div class="flex-between mb-3">
+                <h2>Walimu na Watumiaji</h2>
+                <button class="btn btn-success btn-sm" id="addBtn">+ Ongeza Mtumiaji</button>
+            </div>
+
+            <div id="messageBox" style="display:none;"></div>
+
+            <div class="table-responsive">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Jina</th>
+                            <th>Username</th>
+                            <th>Role</th>
+                            <th>Darasa</th>
+                            <th>Simu</th>
+                            <th>Hali</th>
+                            <th>Kitendo</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbody">
+                        <tr><td colspan="7" class="text-center">Inapakia...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add/Edit Modal -->
+    <div id="modal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:1000; padding:20px; overflow-y:auto;">
+        <div style="background:white; border-radius:10px; padding:25px; max-width:500px; margin:40px auto;">
+            <h3 id="modalTitle" style="color:#1e40af; margin-bottom:15px;">Ongeza Mtumiaji</h3>
+            <input type="hidden" id="editId">
+            <div class="form-group"><label>Jina Kamili *</label><input type="text" id="fullName" required></div>
+            <div class="form-group"><label>Username *</label><input type="text" id="username" required></div>
+            <div class="form-group">
+                <label>Nenosiri <span id="passHint" style="color:#666; font-weight:normal;"></span></label>
+                <input type="text" id="password" placeholder="Weka nenosiri">
+            </div>
+            <div class="form-group"><label>Simu</label><input type="text" id="phone"></div>
+            <div class="form-group">
+                <label>Role *</label>
+                <select id="role">
+                    <option value="teacher">Mwalimu</option>
+                    <option value="deputy_head_teacher">Naibu Mkuu</option>
+                    <option value="head_teacher">Mkuu wa Shule</option>
+                    <option value="administrator">Msimamizi</option>
+                </select>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Darasa Alilopewa</label>
+                    <select id="assignedClass"><option value="">-- Hakuna --</option></select>
+                </div>
+                <div class="form-group">
+                    <label>Stream Aliyopewa</label>
+                    <select id="assignedStream"><option value="">-- Hakuna --</option></select>
+                </div>
+            </div>
+            <div id="err" class="error-message" style="display:none;"></div>
+            <div class="flex gap-2">
+                <button class="btn btn-primary" id="saveBtn">Hifadhi</button>
+                <button class="btn btn-outline" id="cancelBtn">Ghairi</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/config.js"></script>
+    <script src="js/auth.js"></script>
+    <script>
+        const session = AuthService.requireAuth();
+        if (session) {
+            document.getElementById('userName').textContent = session.full_name;
+            init();
+        }
+
+        let classes = [], streams = [], users = [];
+
+        async function init() {
+            const { data: school } = await supabaseClient
+                .from('schools').select('*').eq('school_id', session.school_id).single();
+            if (school) {
+                document.querySelectorAll('[data-school-name]').forEach(el => el.textContent = school.school_name);
+            }
+
+            const [c, s] = await Promise.all([
+                supabaseClient.from('classes').select('*').eq('school_id', session.school_id).order('display_order'),
+                supabaseClient.from('streams').select('*')
+            ]);
+            classes = c.data || [];
+            streams = s.data || [];
+
+            // Populate class select
+            const nc = document.getElementById('assignedClass');
+            classes.forEach(cl => {
+                const o = document.createElement('option');
+                o.value = cl.class_id;
+                o.textContent = cl.class_name;
+                nc.appendChild(o);
+            });
+
+            await loadUsers();
+        }
+
+        document.getElementById('assignedClass').addEventListener('change', (e) => {
+            const sel = document.getElementById('assignedStream');
+            sel.innerHTML = '<option value="">-- Hakuna --</option>';
+            streams.filter(s => s.class_id === e.target.value).forEach(s => {
+                const o = document.createElement('option');
+                o.value = s.stream_id;
+                o.textContent = s.stream_name;
+                sel.appendChild(o);
+            });
+        });
+
+        async function loadUsers() {
+            const { data, error } = await supabaseClient
+                .from('users')
+                .select('*')
+                .eq('school_id', session.school_id)
+                .order('full_name');
+
+            if (error) { showMessage('error', error.message); return; }
+            users = data || [];
+            renderTable();
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById('tbody');
+            tbody.innerHTML = '';
+            users.forEach(u => {
+                const cls = classes.find(c => c.class_id === u.assigned_class);
+                const strm = streams.find(s => s.stream_id === u.assigned_stream);
+
+                const roleLabels = {
+                    administrator: 'Msimamizi',
+                    head_teacher: 'Mkuu',
+                    deputy_head_teacher: 'Naibu Mkuu',
+                    teacher: 'Mwalimu'
+                };
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${u.full_name}</td>
+                    <td><code>${u.username}</code></td>
+                    <td><span class="badge badge-info" style="background:#dbeafe;color:#1e40af;">${roleLabels[u.role] || u.role}</span></td>
+                    <td>${cls ? cls.class_name + ' ' + (strm?.stream_name || '') : '-'}</td>
+                    <td>${u.phone || '-'}</td>
+                    <td><span class="badge ${u.status === 'active' ? 'badge-success' : 'badge-danger'}">${u.status === 'active' ? 'Hai' : 'Haifanyi'}</span></td>
+                    <td style="white-space:nowrap;">
+                        <button class="btn btn-sm btn-outline" onclick="editUser('${u.user_id}')">Hariri</button>
+                        <button class="btn btn-sm ${u.status === 'active' ? 'btn-danger' : 'btn-success'}" onclick="toggleUser('${u.user_id}', '${u.status}')">${u.status === 'active' ? 'Zima' : 'Washa'}</button>
+                    </td>`;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function showMessage(type, text) {
+            const box = document.getElementById('messageBox');
+            box.className = type === 'error' ? 'error-message' : 'success-message';
+            box.textContent = text;
+            box.style.display = 'block';
+            setTimeout(() => box.style.display = 'none', 5000);
+        }
+
+        document.getElementById('addBtn').onclick = () => {
+            document.getElementById('modalTitle').textContent = 'Ongeza Mtumiaji';
+            document.getElementById('editId').value = '';
+            ['fullName','username','password','phone'].forEach(id => document.getElementById(id).value = '');
+            document.getElementById('role').value = 'teacher';
+            document.getElementById('assignedClass').value = '';
+            document.getElementById('assignedStream').innerHTML = '<option value="">-- Hakuna --</option>';
+            document.getElementById('passHint').textContent = '(lazima)';
+            document.getElementById('err').style.display = 'none';
+            document.getElementById('modal').style.display = 'block';
+        };
+
+        document.getElementById('cancelBtn').onclick = () => {
+            document.getElementById('modal').style.display = 'none';
+        };
+
+        window.editUser = (id) => {
+            const u = users.find(x => x.user_id === id);
+            if (!u) return;
+            document.getElementById('modalTitle').textContent = 'Hariri Mtumiaji';
+            document.getElementById('editId').value = u.user_id;
+            document.getElementById('fullName').value = u.full_name;
+            document.getElementById('username').value = u.username;
+            document.getElementById('password').value = '';
+            document.getElementById('passHint').textContent = '(acha wazi kama hubadilishi)';
+            document.getElementById('phone').value = u.phone || '';
+            document.getElementById('role').value = u.role;
+            document.getElementById('assignedClass').value = u.assigned_class || '';
+            document.getElementById('assignedClass').dispatchEvent(new Event('change'));
+            setTimeout(() => {
+                document.getElementById('assignedStream').value = u.assigned_stream || '';
+            }, 50);
+            document.getElementById('err').style.display = 'none';
+            document.getElementById('modal').style.display = 'block';
+        };
+
+        window.toggleUser = async (id, current) => {
+            const newStatus = current === 'active' ? 'inactive' : 'active';
+            const { error } = await supabaseClient.from('users').update({ status: newStatus }).eq('user_id', id);
+            if (error) { showMessage('error', error.message); return; }
+            showMessage('success', newStatus === 'active' ? 'Mtumiaji amewashwa' : 'Mtumiaji amezimwa');
+            await loadUsers();
+        };
+
+        document.getElementById('saveBtn').onclick = async () => {
+            const err = document.getElementById('err');
+            err.style.display = 'none';
+
+            const id = document.getElementById('editId').value;
+            const data = {
+                school_id: session.school_id,
+                full_name: document.getElementById('fullName').value.trim(),
+                username: document.getElementById('username').value.trim(),
+                phone: document.getElementById('phone').value.trim() || null,
+                role: document.getElementById('role').value,
+                assigned_class: document.getElementById('assignedClass').value || null,
+                assigned_stream: document.getElementById('assignedStream').value || null
+            };
+
+            if (!data.full_name || !data.username) {
+                err.textContent = 'Jaza Jina na Username';
+                err.style.display = 'block';
+                return;
+            }
+
+            const pwd = document.getElementById('password').value.trim();
+
+            try {
+                if (id) {
+                    // Update
+                    if (pwd) data.password_hash = pwd;
+                    const { error } = await supabaseClient.from('users').update(data).eq('user_id', id);
+                    if (error) throw error;
+                    showMessage('success', 'Mtumiaji amehaririwa!');
+                } else {
+                    // Insert new
+                    if (!pwd) throw new Error('Weka nenosiri kwa mtumiaji mpya');
+                    data.password_hash = pwd;
+                    data.status = 'active';
+                    const { error } = await supabaseClient.from('users').insert(data);
+                    if (error) throw error;
+                    showMessage('success', 'Mtumiaji ameongezwa!');
+                }
+
+                document.getElementById('modal').style.display = 'none';
+                await loadUsers();
+            } catch (e) {
+                err.textContent = e.message;
+                err.style.display = 'block';
+            }
+        };
+
+        document.getElementById('homeBtn').onclick = () => {
+            window.location.href = session.role === 'administrator' ? 'admin-dashboard.html' : 'teacher-dashboard.html';
+        };
+        document.getElementById('logoutBtn').onclick = () => AuthService.logout();
+    </script>
+</body>
+</html>
