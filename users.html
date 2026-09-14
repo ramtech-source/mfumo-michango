@@ -149,141 +149,82 @@
             users = data || [];
             renderTable();
         }
+function renderTable() {
+    const tbody = document.getElementById('tbody');
+    tbody.innerHTML = '';
+    users.forEach(u => {
+        const cls = classes.find(c => c.class_id === u.assigned_class);
+        const strm = streams.find(s => s.stream_id === u.assigned_stream);
 
-        function renderTable() {
-            const tbody = document.getElementById('tbody');
-            tbody.innerHTML = '';
-            users.forEach(u => {
-                const cls = classes.find(c => c.class_id === u.assigned_class);
-                const strm = streams.find(s => s.stream_id === u.assigned_stream);
+        const roleLabels = {
+            administrator: 'Msimamizi',
+            head_teacher: 'Mkuu',
+            deputy_head_teacher: 'Naibu Mkuu',
+            teacher: 'Mwalimu'
+        };
 
-                const roleLabels = {
-                    administrator: 'Msimamizi',
-                    head_teacher: 'Mkuu',
-                    deputy_head_teacher: 'Naibu Mkuu',
-                    teacher: 'Mwalimu'
-                };
+        // ============================================
+        // SECURITY: Angalia kama mtu anaweza kuhariri mtumiaji huyu
+        // ============================================
+        let canEdit = true;
 
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td>${u.full_name}</td>
-                    <td><code>${u.username}</code></td>
-                    <td><span class="badge badge-info" style="background:#dbeafe;color:#1e40af;">${roleLabels[u.role] || u.role}</span></td>
-                    <td>${cls ? cls.class_name + ' ' + (strm?.stream_name || '') : '-'}</td>
-                    <td>${u.phone || '-'}</td>
-                    <td><span class="badge ${u.status === 'active' ? 'badge-success' : 'badge-danger'}">${u.status === 'active' ? 'Hai' : 'Haifanyi'}</span></td>
-                    <td style="white-space:nowrap;">
-                        <button class="btn btn-sm btn-outline" onclick="editUser('${u.user_id}')">Hariri</button>
-                        <button class="btn btn-sm ${u.status === 'active' ? 'btn-danger' : 'btn-success'}" onclick="toggleUser('${u.user_id}', '${u.status}')">${u.status === 'active' ? 'Zima' : 'Washa'}</button>
-                    </td>`;
-                tbody.appendChild(tr);
-            });
+        // 1. Mtu hawezi kuhariri/kufuta MWENYEWE (kama ni Msimamizi wa mwisho)
+        // 2. Mkuu hawezi kuhariri/kufuta Msimamizi mwingine
+        // 3. Mwalimu wa kawaida hawezi kuhariri mtu yeyote
+        // 4. Mkuu hawezi kuhariri Mkuu mwingine (except mwenyewe)
+
+        if (session.role === 'head_teacher') {
+            // Mkuu hawezi kuhariri administrator
+            if (u.role === 'administrator') {
+                canEdit = false;
+            }
         }
 
-        function showMessage(type, text) {
-            const box = document.getElementById('messageBox');
-            box.className = type === 'error' ? 'error-message' : 'success-message';
-            box.textContent = text;
-            box.style.display = 'block';
-            setTimeout(() => box.style.display = 'none', 5000);
+        if (session.role === 'deputy_head_teacher') {
+            // Naibu Mkuu hawezi kuhariri administrator wala head_teacher
+            if (u.role === 'administrator' || u.role === 'head_teacher') {
+                canEdit = false;
+            }
         }
 
-        document.getElementById('addBtn').onclick = () => {
-            document.getElementById('modalTitle').textContent = 'Ongeza Mtumiaji';
-            document.getElementById('editId').value = '';
-            ['fullName','username','password','phone'].forEach(id => document.getElementById(id).value = '');
-            document.getElementById('role').value = 'teacher';
-            document.getElementById('assignedClass').value = '';
-            document.getElementById('assignedStream').innerHTML = '<option value="">-- Hakuna --</option>';
-            document.getElementById('passHint').textContent = '(lazima)';
-            document.getElementById('err').style.display = 'none';
-            document.getElementById('modal').style.display = 'block';
-        };
+        if (session.role === 'teacher') {
+            // Mwalimu wa kawaida hawezi kuhariri mtu yeyote
+            canEdit = false;
+        }
 
-        document.getElementById('cancelBtn').onclick = () => {
-            document.getElementById('modal').style.display = 'none';
-        };
+        // Mtu hawezi kuhariri MWENYEWE (kuzuia kujifuta)
+        if (u.user_id === session.user_id) {
+            canEdit = false;
+        }
 
-        window.editUser = (id) => {
-            const u = users.find(x => x.user_id === id);
-            if (!u) return;
-            document.getElementById('modalTitle').textContent = 'Hariri Mtumiaji';
-            document.getElementById('editId').value = u.user_id;
-            document.getElementById('fullName').value = u.full_name;
-            document.getElementById('username').value = u.username;
-            document.getElementById('password').value = '';
-            document.getElementById('passHint').textContent = '(acha wazi kama hubadilishi)';
-            document.getElementById('phone').value = u.phone || '';
-            document.getElementById('role').value = u.role;
-            document.getElementById('assignedClass').value = u.assigned_class || '';
-            document.getElementById('assignedClass').dispatchEvent(new Event('change'));
-            setTimeout(() => {
-                document.getElementById('assignedStream').value = u.assigned_stream || '';
-            }, 50);
-            document.getElementById('err').style.display = 'none';
-            document.getElementById('modal').style.display = 'block';
-        };
-
-        window.toggleUser = async (id, current) => {
-            const newStatus = current === 'active' ? 'inactive' : 'active';
-            const { error } = await supabaseClient.from('users').update({ status: newStatus }).eq('user_id', id);
-            if (error) { showMessage('error', error.message); return; }
-            showMessage('success', newStatus === 'active' ? 'Mtumiaji amewashwa' : 'Mtumiaji amezimwa');
-            await loadUsers();
-        };
-
-        document.getElementById('saveBtn').onclick = async () => {
-            const err = document.getElementById('err');
-            err.style.display = 'none';
-
-            const id = document.getElementById('editId').value;
-            const data = {
-                school_id: session.school_id,
-                full_name: document.getElementById('fullName').value.trim(),
-                username: document.getElementById('username').value.trim(),
-                phone: document.getElementById('phone').value.trim() || null,
-                role: document.getElementById('role').value,
-                assigned_class: document.getElementById('assignedClass').value || null,
-                assigned_stream: document.getElementById('assignedStream').value || null
-            };
-
-            if (!data.full_name || !data.username) {
-                err.textContent = 'Jaza Jina na Username';
-                err.style.display = 'block';
-                return;
+        // ============================================
+        // Unda vitufe kulingana na ruhusa
+        // ============================================
+        let actionsHTML = '';
+        if (canEdit) {
+            actionsHTML = `
+                <button class="btn btn-sm btn-outline" onclick="editUser('${u.user_id}')">Hariri</button>
+                <button class="btn btn-sm ${u.status === 'active' ? 'btn-danger' : 'btn-success'}" onclick="toggleUser('${u.user_id}', '${u.status}')">${u.status === 'active' ? 'Zima' : 'Washa'}</button>
+            `;
+        } else {
+            // Onyesha badge ya "Imefungwa" au "Wewe"
+            if (u.user_id === session.user_id) {
+                actionsHTML = `<span style="color:#666; font-size:12px; font-style:italic;">👤 Wewe</span>`;
+            } else {
+                actionsHTML = `<span style="color:#999; font-size:12px; font-style:italic;">🔒 Imefungwa</span>`;
             }
+        }
 
-            const pwd = document.getElementById('password').value.trim();
-
-            try {
-                if (id) {
-                    // Update
-                    if (pwd) data.password_hash = pwd;
-                    const { error } = await supabaseClient.from('users').update(data).eq('user_id', id);
-                    if (error) throw error;
-                    showMessage('success', 'Mtumiaji amehaririwa!');
-                } else {
-                    // Insert new
-                    if (!pwd) throw new Error('Weka nenosiri kwa mtumiaji mpya');
-                    data.password_hash = pwd;
-                    data.status = 'active';
-                    const { error } = await supabaseClient.from('users').insert(data);
-                    if (error) throw error;
-                    showMessage('success', 'Mtumiaji ameongezwa!');
-                }
-
-                document.getElementById('modal').style.display = 'none';
-                await loadUsers();
-            } catch (e) {
-                err.textContent = e.message;
-                err.style.display = 'block';
-            }
-        };
-
-        document.getElementById('homeBtn').onclick = () => {
-            window.location.href = session.role === 'administrator' ? 'admin-dashboard.html' : 'teacher-dashboard.html';
-        };
-        document.getElementById('logoutBtn').onclick = () => AuthService.logout();
-    </script>
-</body>
-</html>
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>${u.full_name}</td>
+            <td><code>${u.username}</code></td>
+            <td><span class="badge badge-info" style="background:#dbeafe;color:#1e40af;">${roleLabels[u.role] || u.role}</span></td>
+            <td>${cls ? cls.class_name + ' ' + (strm?.stream_name || '') : '-'}</td>
+            <td>${u.phone || '-'}</td>
+            <td><span class="badge ${u.status === 'active' ? 'badge-success' : 'badge-danger'}">${u.status === 'active' ? 'Hai' : 'Haifanyi'}</span></td>
+            <td style="white-space:nowrap;">${actionsHTML}</td>`;
+        tbody.appendChild(tr);
+    });
+}
+      
