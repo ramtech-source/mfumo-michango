@@ -23,7 +23,7 @@
     <div class="container">
         <h2 style="margin-bottom:20px; color:#1e40af;">Ripoti ya Shule</h2>
 
-        <!-- Filter ya Kipindi -->
+        <!-- Filter -->
         <div class="card">
             <div class="form-row">
                 <div class="form-group">
@@ -35,7 +35,6 @@
                         <option value="muhula">Muhula Huu</option>
                         <option value="six_months">Miezi 6</option>
                         <option value="year">Mwaka Huu</option>
-                        <option value="all">Yote</option>
                     </select>
                 </div>
                 <div class="form-group">
@@ -46,6 +45,7 @@
                     <button class="btn btn-primary btn-block" id="loadBtn">Pakia Ripoti</button>
                 </div>
             </div>
+            <p id="loadStatus" style="color:#666; font-size:13px; margin-top:10px;"></p>
         </div>
 
         <!-- Stats -->
@@ -68,7 +68,7 @@
             </div>
         </div>
 
-        <!-- Menu ya Haraka -->
+        <!-- Menu -->
         <div class="card">
             <h2>Menu ya Haraka</h2>
             <div class="dashboard-grid">
@@ -95,7 +95,7 @@
                         </tr>
                     </thead>
                     <tbody id="classTable">
-                        <tr><td colspan="6" class="text-center">Inapakia...</td></tr>
+                        <tr><td colspan="6" class="text-center">Bonyeza "Pakia Ripoti" kuanza</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -105,7 +105,7 @@
         <div class="card">
             <h2>Chati ya Makusanyo kwa Darasa</h2>
             <div id="classChart" style="display:flex; align-items:flex-end; gap:8px; height:200px; padding:10px 0; overflow-x:auto;">
-                <p style="color:#666;">Inapakia...</p>
+                <p style="color:#666;">Inasubiri data...</p>
             </div>
         </div>
 
@@ -122,7 +122,7 @@
                         </tr>
                     </thead>
                     <tbody id="contribTable">
-                        <tr><td colspan="3" class="text-center">Inapakia...</td></tr>
+                        <tr><td colspan="3" class="text-center">Inasubiri data...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -141,7 +141,7 @@
                         </tr>
                     </thead>
                     <tbody id="teacherTable">
-                        <tr><td colspan="3" class="text-center">Inapakia...</td></tr>
+                        <tr><td colspan="3" class="text-center">Inasubiri data...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -151,9 +151,8 @@
         <div class="card">
             <h2>Export Ripoti</h2>
             <div class="flex gap-2" style="flex-wrap:wrap;">
-                <button class="btn btn-outline" id="exportClassBtn">📊 Export kwa Darasa (Excel)</button>
-                <button class="btn btn-outline" id="exportTeacherBtn">📊 Export kwa Mwalimu (Excel)</button>
-                <button class="btn btn-outline" id="exportAllBtn">📊 Export Malipo Yote (Excel)</button>
+                <button class="btn btn-outline" id="exportClassBtn">📊 Export kwa Darasa</button>
+                <button class="btn btn-outline" id="exportTeacherBtn">📊 Export kwa Mwalimu</button>
                 <button class="btn btn-outline" id="printBtn">🖨️ Chapisha</button>
             </div>
         </div>
@@ -188,32 +187,100 @@
             }
         }
 
+        function setStatus(text) {
+            document.getElementById('loadStatus').textContent = text;
+        }
+
         async function loadData() {
             const period = document.getElementById('periodSelect').value;
             const refDate = document.getElementById('refDate').value;
             const range = PeriodHelper.getDateRange(period, refDate);
 
+            document.getElementById('loadBtn').disabled = true;
             document.getElementById('loadBtn').textContent = 'Inapakia...';
 
             try {
-                const [clsRes, stuRes, payRes, conRes, usrRes] = await Promise.all([
-                    supabaseClient.from('classes').select('*').eq('school_id', session.school_id).order('display_order'),
-                    supabaseClient.from('students').select('*').eq('school_id', session.school_id).eq('status', 'active'),
-                    supabaseClient.from('payments').select('*').eq('school_id', session.school_id).eq('is_deleted', false).gte('payment_date', range.start).lte('payment_date', range.end),
-                    supabaseClient.from('contributions').select('*').eq('school_id', session.school_id),
-                    supabaseClient.from('users').select('*').eq('school_id', session.school_id)
-                ]);
+                // 1. Pata classes
+                setStatus('Inapakia madarasa...');
+                const { data: classes, error: err1 } = await supabaseClient
+                    .from('classes')
+                    .select('*')
+                    .eq('school_id', session.school_id)
+                    .order('display_order');
+                if (err1) throw err1;
+                reportData.classes = classes || [];
 
-                reportData.classes = clsRes.data || [];
-                reportData.students = stuRes.data || [];
-                reportData.payments = payRes.data || [];
-                reportData.contributions = conRes.data || [];
-                reportData.teachers = usrRes.data || [];
+                // 2. Pata users (teachers)
+                setStatus('Inapakia walimu...');
+                const { data: users, error: err2 } = await supabaseClient
+                    .from('users')
+                    .select('user_id, full_name, role')
+                    .eq('school_id', session.school_id);
+                if (err2) throw err2;
+                reportData.teachers = users || [];
+
+                // 3. Pata contributions
+                setStatus('Inapakia michango...');
+                const { data: contributions, error: err3 } = await supabaseClient
+                    .from('contributions')
+                    .select('*')
+                    .eq('school_id', session.school_id);
+                if (err3) throw err3;
+                reportData.contributions = contributions || [];
+
+                // 4. Pata students - chukua kwa batches (kama ni wengi)
+                setStatus('Inapakia wanafunzi...');
+                const { data: students, error: err4 } = await supabaseClient
+                    .from('students')
+                    .select('student_id, full_name, class_id, stream_id, status')
+                    .eq('school_id', session.school_id)
+                    .eq('status', 'active');
+                if (err4) throw err4;
+                reportData.students = students || [];
+
+                // 5. Pata payments - LAKINI chukua kwa vikundi (pagination)
+                setStatus(`Inapakia malipo (${range.start} hadi ${range.end})...`);
+                
+                let allPayments = [];
+                let from = 0;
+                const batchSize = 1000;
+                let hasMore = true;
+
+                while (hasMore) {
+                    const { data: batch, error: errP } = await supabaseClient
+                        .from('payments')
+                        .select('payment_id, student_id, contribution_id, teacher_id, amount, payment_date, frequency')
+                        .eq('school_id', session.school_id)
+                        .eq('is_deleted', false)
+                        .gte('payment_date', range.start)
+                        .lte('payment_date', range.end)
+                        .range(from, from + batchSize - 1);
+
+                    if (errP) throw errP;
+
+                    if (!batch || batch.length === 0) {
+                        hasMore = false;
+                    } else {
+                        allPayments = allPayments.concat(batch);
+                        if (batch.length < batchSize) {
+                            hasMore = false;
+                        } else {
+                            from += batchSize;
+                        }
+                    }
+                }
+
+                reportData.payments = allPayments;
+                setStatus(`✓ Data imepakiwa: ${reportData.students.length} wanafunzi, ${allPayments.length} malipo`);
 
                 renderAll();
+
             } catch (e) {
+                console.error('Error:', e);
+                setStatus('❌ Hitilafu: ' + e.message);
                 alert('Hitilafu: ' + e.message);
             } finally {
+                document.getElementById('loadBtn').disabled = false;
                 document.getElementById('loadBtn').textContent = 'Pakia Ripoti';
             }
         }
@@ -227,16 +294,10 @@
             document.getElementById('totalUnpaid').textContent = Math.max(0, reportData.students.length - paidIds.size);
             document.getElementById('totalStudents').textContent = reportData.students.length;
 
-            // By Class
+            // ===== By Class =====
             const byClass = {};
             reportData.classes.forEach(c => {
-                byClass[c.class_id] = {
-                    id: c.class_id,
-                    name: c.class_name,
-                    students: 0,
-                    paid: new Set(),
-                    total: 0
-                };
+                byClass[c.class_id] = { name: c.class_name, students: 0, paid: new Set(), total: 0 };
             });
             reportData.students.forEach(s => {
                 if (byClass[s.class_id]) byClass[s.class_id].students++;
@@ -257,7 +318,7 @@
             const classArr = Object.values(byClass).filter(c => c.students > 0 || c.total > 0);
 
             if (classArr.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" class="text-center">Hakuna data</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center">Hakuna data kwa kipindi hiki</td></tr>';
                 chart.innerHTML = '<p style="color:#666;">Hakuna data</p>';
             } else {
                 const maxTotal = Math.max(...classArr.map(c => c.total), 1);
@@ -284,7 +345,7 @@
                 });
             }
 
-            // By Contribution
+            // ===== By Contribution =====
             const byContr = {};
             reportData.contributions.forEach(c => {
                 byContr[c.contribution_id] = { name: c.contribution_name, count: 0, total: 0 };
@@ -309,7 +370,7 @@
                 });
             }
 
-            // By Teacher
+            // ===== By Teacher =====
             const byTeacher = {};
             reportData.teachers.forEach(t => {
                 byTeacher[t.user_id] = { name: t.full_name, count: 0, total: 0 };
@@ -335,8 +396,12 @@
             }
         }
 
-        // Export functions
+        // Export kwa Darasa
         document.getElementById('exportClassBtn').onclick = () => {
+            if (reportData.payments.length === 0) {
+                alert('Bonyeza "Pakia Ripoti" kwanza');
+                return;
+            }
             const data = [];
             const byClass = {};
             reportData.classes.forEach(c => {
@@ -368,6 +433,10 @@
         };
 
         document.getElementById('exportTeacherBtn').onclick = () => {
+            if (reportData.payments.length === 0) {
+                alert('Bonyeza "Pakia Ripoti" kwanza');
+                return;
+            }
             const data = [];
             const byTeacher = {};
             reportData.teachers.forEach(t => {
@@ -388,30 +457,7 @@
             XLSX.writeFile(wb, `ripoti_walimu_${new Date().toISOString().split('T')[0]}.xlsx`);
         };
 
-        document.getElementById('exportAllBtn').onclick = () => {
-            const data = reportData.payments.map(p => {
-                const student = reportData.students.find(s => s.student_id === p.student_id);
-                const contrib = reportData.contributions.find(c => c.contribution_id === p.contribution_id);
-                const teacher = reportData.teachers.find(t => t.user_id === p.teacher_id);
-                const cls = student ? reportData.classes.find(c => c.class_id === student.class_id) : null;
-                return {
-                    'Transaction ID': p.transaction_id,
-                    'Tarehe': p.payment_date,
-                    'Mwanafunzi': student?.full_name || '',
-                    'Darasa': cls?.class_name || '',
-                    'Mchango': contrib?.contribution_name || '',
-                    'Kiasi (Tsh)': Number(p.amount),
-                    'Mwalimu': teacher?.full_name || ''
-                };
-            });
-            const ws = XLSX.utils.json_to_sheet(data);
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, 'Malipo Yote');
-            XLSX.writeFile(wb, `malipo_yote_${new Date().toISOString().split('T')[0]}.xlsx`);
-        };
-
         document.getElementById('printBtn').onclick = () => window.print();
-
         document.getElementById('loadBtn').onclick = loadData;
         document.getElementById('periodSelect').onchange = loadData;
         document.getElementById('logoutBtn').onclick = () => AuthService.logout();
