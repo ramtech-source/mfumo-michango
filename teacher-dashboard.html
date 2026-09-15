@@ -28,10 +28,37 @@
             <button class="btn btn-sm btn-outline" id="homeBtn">← Nyumbani</button>
         </div>
 
+        <!-- DARASA LA MWALIMU (Imefungwa) -->
+        <div class="card" style="background:linear-gradient(135deg, #1e40af, #3b82f6); color:white;">
+            <h2 style="color:white; margin-bottom:5px;">Darasa Langu</h2>
+            <p style="font-size:20px; font-weight:700;" id="myClassInfo">Inapakia...</p>
+        </div>
+
+        <!-- Filter ya Kipindi -->
+        <div class="card">
+            <h2>Ripoti ya Makusanyo</h2>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Kipindi</label>
+                    <select id="periodSelect">
+                        <option value="day">Leo</option>
+                        <option value="week">Wiki Hii</option>
+                        <option value="month" selected>Mwezi Huu</option>
+                        <option value="muhula">Muhula Huu</option>
+                        <option value="six_months">Miezi 6</option>
+                        <option value="year">Mwaka Huu</option>
+                    </select>
+                </div>
+                <div class="form-group" style="display:flex; align-items:flex-end;">
+                    <button class="btn btn-primary btn-block" id="loadBtn">Pakia</button>
+                </div>
+            </div>
+        </div>
+
         <!-- Dashboard Cards -->
         <div class="dashboard-grid">
             <div class="stat-card card">
-                <h3>Makusanyo ya Leo</h3>
+                <h3>Makusanyo</h3>
                 <p class="stat-value" id="todayTotal">Tsh 0</p>
             </div>
             <div class="stat-card card">
@@ -58,20 +85,6 @@
                         <input type="date" id="paymentDate" required>
                     </div>
                     <div class="form-group">
-                        <label>Darasa</label>
-                        <select id="classSelect" required>
-                            <option value="">-- Chagua Darasa --</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Stream</label>
-                        <select id="streamSelect" required>
-                            <option value="">-- Chagua Stream --</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
                         <label>Aina ya Mchango</label>
                         <select id="contributionSelect" required>
                             <option value="">-- Chagua Mchango --</option>
@@ -80,23 +93,24 @@
                 </div>
 
                 <div class="student-list-container">
-                    <h3>Orodha ya Wanafunzi</h3>
+                    <h3>Orodha ya Wanafunzi wa Darasa Langu</h3>
                     <div class="search-box">
                         <input type="text" id="studentSearch" placeholder="Tafuta mwanafunzi...">
                     </div>
                     <div class="table-responsive">
-                        <table class="table" id="studentTable">
+                        <table class="table">
                             <thead>
                                 <tr>
                                     <th>No.</th>
                                     <th>Mwanafunzi</th>
                                     <th>Kiasi</th>
                                     <th>Hali</th>
+                                    <th>Kipindi</th>
                                     <th>Kitendo</th>
                                 </tr>
                             </thead>
                             <tbody id="studentTbody">
-                                <tr><td colspan="5" class="text-center">Chagua darasa na stream</td></tr>
+                                <tr><td colspan="6" class="text-center">Chagua kipindi na bonyeza "Pakia"</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -104,9 +118,8 @@
 
                 <div class="summary-box" id="summaryBox" style="display:none;">
                     <h3>MUHTASARI WA MAKUSANYO</h3>
-                    <p><span>Tarehe:</span> <span id="summaryDate"></span></p>
+                    <p><span>Kipindi:</span> <span id="summaryPeriod"></span></p>
                     <p><span>Darasa:</span> <span id="summaryClass"></span></p>
-                    <p><span>Stream:</span> <span id="summaryStream"></span></p>
                     <p><span>Wanafunzi:</span> <span id="summaryTotal">0</span></p>
                     <p><span>Waliochangia:</span> <span id="summaryPaid">0</span></p>
                     <p><span>Hawajachangia:</span> <span id="summaryUnpaid">0</span></p>
@@ -114,24 +127,58 @@
                 </div>
             </form>
         </div>
+
+        <!-- Orodha ya Hawajachangia -->
+        <div class="card" id="unpaidCard" style="display:none;">
+            <h2 style="color:#dc2626;">⚠️ Wanafunzi Hawajachangia</h2>
+            <div class="table-responsive">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>No.</th>
+                            <th>Jina</th>
+                            <th>Student ID</th>
+                            <th>Kitendo</th>
+                        </tr>
+                    </thead>
+                    <tbody id="unpaidTbody"></tbody>
+                </table>
+            </div>
+        </div>
     </div>
 
-    <!-- Change Password Modal -->
-    <div id="passModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:1000; padding:20px; overflow-y:auto;">
-        <div style="background:white; border-radius:10px; padding:25px; max-width:400px; margin:40px auto;">
-            <h3 style="color:#1e40af; margin-bottom:15px;">Badilisha Nenosiri</h3>
+    <!-- Edit Amount Modal -->
+    <div id="editModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:1000; padding:20px; overflow-y:auto;">
+        <div style="background:white; border-radius:10px; padding:25px; max-width:450px; margin:40px auto;">
+            <h3 style="color:#1e40af; margin-bottom:15px;">Hariri Kiasi</h3>
+            <input type="hidden" id="editPaymentId">
             <div class="form-group">
-                <label>Nenosiri la Sasa</label>
-                <input type="password" id="oldPass">
+                <label>Mwanafunzi</label>
+                <input type="text" id="editStudentName" readonly style="background:#f3f4f6;">
             </div>
             <div class="form-group">
-                <label>Nenosiri Jipya</label>
-                <input type="password" id="newPass">
+                <label>Kiasi (Tsh)</label>
+                <input type="number" id="editAmount" min="0">
             </div>
-            <div id="passError" class="error-message" style="display:none;"></div>
+            <div class="form-group">
+                <label>Kipindi cha Malipo</label>
+                <select id="editFrequency">
+                    <option value="daily">Kila Siku</option>
+                    <option value="weekly">Kila Wiki</option>
+                    <option value="monthly">Kila Mwezi</option>
+                    <option value="muhula">Kila Muhula</option>
+                    <option value="six_months">Kila Miezi 6</option>
+                    <option value="annual">Kila Mwaka</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Sababu ya Kubadilisha</label>
+                <input type="text" id="editReason" placeholder="mfano: Nimekosea kiasi">
+            </div>
+            <div id="editError" class="error-message" style="display:none;"></div>
             <div class="flex gap-2">
-                <button class="btn btn-primary" id="savePassBtn">Hifadhi</button>
-                <button class="btn btn-outline" id="cancelPassBtn">Ghairi</button>
+                <button class="btn btn-primary" id="saveEditBtn">Hifadhi</button>
+                <button class="btn btn-outline" id="cancelEditBtn">Ghairi</button>
             </div>
         </div>
     </div>
@@ -146,30 +193,53 @@
             initApp();
         }
 
+        let myClass = null;
+        let myStream = null;
         let currentStudents = [];
         let currentPayments = [];
+        let allPeriodPayments = [];
 
         async function initApp() {
             const today = new Date().toISOString().split('T')[0];
             document.getElementById('paymentDate').value = today;
-            document.getElementById('summaryDate').textContent = today;
 
             // Load school
-            try {
-                const { data: school } = await supabaseClient
-                    .from('schools')
-                    .select('*')
-                    .eq('school_id', session.school_id)
-                    .single();
-                if (school) {
-                    document.querySelectorAll('[data-school-name]').forEach(el => el.textContent = school.school_name);
-                }
-            } catch (e) { console.warn(e); }
+            const { data: school } = await supabaseClient
+                .from('schools').select('*').eq('school_id', session.school_id).single();
+            if (school) {
+                document.querySelectorAll('[data-school-name]').forEach(el => el.textContent = school.school_name);
+            }
 
-            await loadClasses();
+            // Pata darasa la mwalimu
+            if (session.assigned_class) {
+                const { data: cls } = await supabaseClient
+                    .from('classes').select('*').eq('class_id', session.assigned_class).single();
+                myClass = cls;
+            }
+            if (session.assigned_stream) {
+                const { data: strm } = await supabaseClient
+                    .from('streams').select('*').eq('stream_id', session.assigned_stream).single();
+                myStream = strm;
+            }
+
+            // Update class info card
+            if (myClass) {
+                const info = `${myClass.class_name}${myStream ? ' - ' + myStream.stream_name : ''}`;
+                document.getElementById('myClassInfo').textContent = info;
+                document.getElementById('summaryClass').textContent = info;
+            } else {
+                document.getElementById('myClassInfo').textContent = 'Hauna darasa lililopewa. Wasiliana na Msimamizi.';
+                document.getElementById('myClassInfo').style.color = '#fef3c7';
+            }
+
+            // Kama mwalimu wa kawaida ana darasa, funga buttons zote za kubadilisha
+            if (session.role === 'teacher' && !myClass) {
+                alert('Hauna darasa lililopewa. Wasiliana na Msimamizi.');
+            }
+
             await loadContributions();
+            await loadData();
 
-            // Update network status
             updateNet();
             window.addEventListener('online', updateNet);
             window.addEventListener('offline', updateNet);
@@ -177,40 +247,6 @@
 
         function updateNet() {
             document.getElementById('netText').textContent = navigator.onLine ? 'Upo' : 'Haupo';
-        }
-
-        async function loadClasses() {
-            const { data } = await supabaseClient
-                .from('classes')
-                .select('*')
-                .eq('school_id', session.school_id)
-                .order('display_order');
-            const sel = document.getElementById('classSelect');
-            sel.innerHTML = '<option value="">-- Chagua Darasa --</option>';
-            (data || []).forEach(c => {
-                const o = document.createElement('option');
-                o.value = c.class_id;
-                o.textContent = c.class_name;
-                sel.appendChild(o);
-            });
-        }
-
-        async function loadStreams() {
-            const classId = document.getElementById('classSelect').value;
-            const sel = document.getElementById('streamSelect');
-            sel.innerHTML = '<option value="">-- Chagua Stream --</option>';
-            if (!classId) return;
-            const { data } = await supabaseClient
-                .from('streams')
-                .select('*')
-                .eq('class_id', classId)
-                .order('stream_name');
-            (data || []).forEach(s => {
-                const o = document.createElement('option');
-                o.value = s.stream_id;
-                o.textContent = s.stream_name;
-                sel.appendChild(o);
-            });
         }
 
         async function loadContributions() {
@@ -226,103 +262,150 @@
                 o.value = c.contribution_id;
                 o.textContent = `${c.contribution_name} (Tsh ${Number(c.default_amount).toLocaleString()})`;
                 o.dataset.amount = c.default_amount;
-                o.dataset.frequency = c.frequency;
                 sel.appendChild(o);
             });
         }
 
-        async function loadStudents() {
-            const classId = document.getElementById('classSelect').value;
-            const streamId = document.getElementById('streamSelect').value;
-            const date = document.getElementById('paymentDate').value;
-            if (!classId || !streamId) {
-                document.getElementById('studentTbody').innerHTML =
-                    '<tr><td colspan="5" class="text-center">Chagua darasa na stream</td></tr>';
+        async function loadData() {
+            if (!myClass) {
+                alert('Hauna darasa lililopewa');
                 return;
             }
 
-            document.getElementById('studentTbody').innerHTML =
-                '<tr><td colspan="5" class="text-center">Inapakia...</td></tr>';
+            const period = document.getElementById('periodSelect').value;
+            const refDate = document.getElementById('paymentDate').value;
+            const range = PeriodHelper.getDateRange(period, refDate);
 
-            // Pata wanafunzi
+            // Pata wanafunzi wa darasa lake tu
             const { data: students } = await supabaseClient
                 .from('students')
                 .select('*')
                 .eq('school_id', session.school_id)
-                .eq('class_id', classId)
-                .eq('stream_id', streamId)
+                .eq('class_id', myClass.class_id)
                 .eq('status', 'active')
                 .order('full_name');
 
-            currentStudents = students || [];
+            // Kama mwalimu ana stream maalum, chuja kwa stream pia
+            let filteredStudents = students || [];
+            if (myStream) {
+                filteredStudents = filteredStudents.filter(s => s.stream_id === myStream.stream_id);
+            }
 
-            // Pata malipo ya siku
-            const { data: payments } = await supabaseClient
+            currentStudents = filteredStudents;
+
+            // Pata malipo ya kipindi
+            let query = supabaseClient
                 .from('payments')
                 .select('*')
                 .eq('school_id', session.school_id)
-                .eq('payment_date', date)
+                .eq('is_deleted', false)
+                .gte('payment_date', range.start)
+                .lte('payment_date', range.end);
+
+            // Mwalimu wa kawaida: ona malipo yake tu
+            if (session.role === 'teacher') {
+                query = query.eq('teacher_id', session.user_id);
+            }
+
+            const { data: payments } = await query;
+
+            // Chuja malipo ya wanafunzi wa darasa lake
+            const studentIds = new Set(filteredStudents.map(s => s.student_id));
+            allPeriodPayments = (payments || []).filter(p => studentIds.has(p.student_id));
+
+            // Pata malipo ya siku maalum (kwa entry)
+            const { data: todayPayments } = await supabaseClient
+                .from('payments')
+                .select('*')
+                .eq('school_id', session.school_id)
+                .eq('payment_date', refDate)
                 .eq('is_deleted', false);
 
-            const filteredPayments = (payments || []).filter(p =>
-                currentStudents.some(s => s.student_id === p.student_id)
-            );
-            currentPayments = filteredPayments;
+            currentPayments = (todayPayments || []).filter(p => studentIds.has(p.student_id));
 
             renderStudents();
+            renderUnpaid();
+            updateSummary(range);
         }
 
         function renderStudents() {
             const tbody = document.getElementById('studentTbody');
-            const paidIds = new Set(currentPayments.map(p => p.student_id));
+            const paidTodayIds = new Set(currentPayments.map(p => p.student_id));
 
             if (currentStudents.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" class="text-center">Hakuna wanafunzi kwenye darasa hili</td></tr>';
-                updateSummary();
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center">Hakuna wanafunzi kwenye darasa hili</td></tr>';
                 return;
             }
 
             tbody.innerHTML = '';
             currentStudents.forEach((st, i) => {
-                const isPaid = paidIds.has(st.student_id);
+                const isPaidToday = paidTodayIds.has(st.student_id);
                 const pmt = currentPayments.find(p => p.student_id === st.student_id);
+
+                // Pata jumla ya kipindi kwa mwanafunzi huyu
+                const studentPeriodPayments = allPeriodPayments.filter(p => p.student_id === st.student_id);
+                const periodTotal = studentPeriodPayments.reduce((s, p) => s + Number(p.amount), 0);
+
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
                     <td>${i + 1}</td>
                     <td>${st.full_name}<br><small style="color:#666">${st.student_code}</small></td>
-                    <td>${isPaid ? 'Tsh ' + Number(pmt.amount).toLocaleString() : '-'}</td>
-                    <td><span class="badge ${isPaid ? 'badge-success' : 'badge-warning'}">${isPaid ? 'Amelipa' : 'Hajalipa'}</span></td>
-                    <td>${!isPaid
-                        ? `<button class="btn btn-sm btn-primary pay-btn" data-sid="${st.student_id}" data-sname="${st.full_name}">Rekodi</button>`
-                        : `<span style="color:#16a34a;">✓</span>`}
+                    <td>${isPaidToday ? 'Tsh ' + Number(pmt.amount).toLocaleString() : '-'}</td>
+                    <td><span class="badge ${isPaidToday ? 'badge-success' : 'badge-warning'}">${isPaidToday ? 'Amelipa' : 'Hajalipa'}</span></td>
+                    <td>${periodTotal > 0 ? 'Tsh ' + periodTotal.toLocaleString() : '-'}</td>
+                    <td style="white-space:nowrap;">
+                        ${!isPaidToday
+                            ? `<button class="btn btn-sm btn-primary pay-btn" data-sid="${st.student_id}" data-sname="${st.full_name}">Rekodi</button>`
+                            : `<button class="btn btn-sm btn-outline edit-btn" data-pid="${pmt.payment_id}" data-sname="${st.full_name}" data-amount="${pmt.amount}" data-freq="${pmt.frequency || 'daily'}">Hariri</button>`}
                     </td>`;
                 tbody.appendChild(tr);
             });
 
-            // Attach events
             document.querySelectorAll('.pay-btn').forEach(b => b.onclick = () => handlePay(b));
-
-            updateSummary();
+            document.querySelectorAll('.edit-btn').forEach(b => b.onclick = () => openEdit(b));
         }
 
-        function updateSummary() {
-            const paidIds = new Set(currentPayments.map(p => p.student_id));
-            const total = currentPayments.reduce((s, p) => s + Number(p.amount), 0);
-            const cls = document.getElementById('classSelect').selectedOptions[0]?.textContent || '';
-            const strm = document.getElementById('streamSelect').selectedOptions[0]?.textContent || '';
+        function renderUnpaid() {
+            const paidTodayIds = new Set(currentPayments.map(p => p.student_id));
+            const unpaid = currentStudents.filter(s => !paidTodayIds.has(s.student_id));
+
+            const card = document.getElementById('unpaidCard');
+            const tbody = document.getElementById('unpaidTbody');
+
+            if (unpaid.length === 0) {
+                card.style.display = 'none';
+                return;
+            }
+
+            card.style.display = 'block';
+            tbody.innerHTML = '';
+            unpaid.forEach((s, i) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${i + 1}</td>
+                    <td>${s.full_name}</td>
+                    <td>${s.student_code}</td>
+                    <td><button class="btn btn-sm btn-primary pay-btn" data-sid="${s.student_id}" data-sname="${s.full_name}">Rekodi</button></td>`;
+                tbody.appendChild(tr);
+            });
+            document.querySelectorAll('#unpaidTbody .pay-btn').forEach(b => b.onclick = () => handlePay(b));
+        }
+
+        function updateSummary(range) {
+            const paidTodayIds = new Set(currentPayments.map(p => p.student_id));
+            const totalToday = currentPayments.reduce((s, p) => s + Number(p.amount), 0);
+            const totalPeriod = allPeriodPayments.reduce((s, p) => s + Number(p.amount), 0);
 
             document.getElementById('summaryBox').style.display = 'block';
-            document.getElementById('summaryDate').textContent = document.getElementById('paymentDate').value;
-            document.getElementById('summaryClass').textContent = cls;
-            document.getElementById('summaryStream').textContent = strm;
+            document.getElementById('summaryPeriod').textContent = PeriodHelper.getLabel(document.getElementById('periodSelect').value);
             document.getElementById('summaryTotal').textContent = currentStudents.length;
-            document.getElementById('summaryPaid').textContent = paidIds.size;
-            document.getElementById('summaryUnpaid').textContent = currentStudents.length - paidIds.size;
-            document.getElementById('summaryAmount').textContent = 'Tsh ' + total.toLocaleString();
+            document.getElementById('summaryPaid').textContent = paidTodayIds.size;
+            document.getElementById('summaryUnpaid').textContent = currentStudents.length - paidTodayIds.size;
+            document.getElementById('summaryAmount').textContent = 'Tsh ' + totalPeriod.toLocaleString();
 
-            document.getElementById('todayTotal').textContent = 'Tsh ' + total.toLocaleString();
-            document.getElementById('paidCount').textContent = paidIds.size;
-            document.getElementById('unpaidCount').textContent = currentStudents.length - paidIds.size;
+            document.getElementById('todayTotal').textContent = 'Tsh ' + totalToday.toLocaleString();
+            document.getElementById('paidCount').textContent = paidTodayIds.size;
+            document.getElementById('unpaidCount').textContent = currentStudents.length - paidTodayIds.size;
             document.getElementById('totalStudents').textContent = currentStudents.length;
         }
 
@@ -332,14 +415,21 @@
             const csel = document.getElementById('contributionSelect');
             const cid = csel.value;
             if (!cid) { alert('Chagua aina ya mchango kwanza'); return; }
+
             const defAmt = csel.selectedOptions[0]?.dataset.amount || '500';
-            const freq = csel.selectedOptions[0]?.dataset.frequency || 'daily';
             const input = prompt(`Kiasi kwa ${sname} (Tsh):`, defAmt);
             if (input === null) return;
             const amt = Number(input);
             if (isNaN(amt) || amt <= 0) { alert('Kiasi si sahihi'); return; }
 
-            // Unda transaction ID
+            // Chagua frequency
+            const freqInput = prompt(
+                `Chagua kipindi cha malipo:\n1 = Kila Siku\n2 = Kila Wiki\n3 = Kila Mwezi\n4 = Kila Muhula\n5 = Kila Miezi 6\n6 = Kila Mwaka\n\nWeka namba (1-6):`,
+                '1'
+            );
+            const freqMap = { '1': 'daily', '2': 'weekly', '3': 'monthly', '4': 'muhula', '5': 'six_months', '6': 'annual' };
+            const freq = freqMap[freqInput] || 'daily';
+
             const txnId = 'TXN-' + Date.now() + '-' + Math.random().toString(36).substring(2, 8).toUpperCase();
 
             try {
@@ -356,23 +446,90 @@
                 });
 
                 if (error) throw error;
-
                 alert('✅ Malipo yamehifadhiwa!\n\nTransaction: ' + txnId);
-                await loadStudents();
+                await loadData();
 
             } catch (e) {
                 alert('❌ Hitilafu: ' + e.message);
             }
         }
 
-        // Events
-        document.getElementById('classSelect').addEventListener('change', async () => {
-            await loadStreams();
-            document.getElementById('studentTbody').innerHTML =
-                '<tr><td colspan="5" class="text-center">Chagua stream</td></tr>';
-        });
-        document.getElementById('streamSelect').addEventListener('change', loadStudents);
-        document.getElementById('paymentDate').addEventListener('change', loadStudents);
+        window.openEdit = (btn) => {
+            document.getElementById('editPaymentId').value = btn.dataset.pid;
+            document.getElementById('editStudentName').value = btn.dataset.sname;
+            document.getElementById('editAmount').value = btn.dataset.amount;
+            document.getElementById('editFrequency').value = btn.dataset.freq || 'daily';
+            document.getElementById('editReason').value = '';
+            document.getElementById('editError').style.display = 'none';
+            document.getElementById('editModal').style.display = 'block';
+        };
+
+        document.getElementById('cancelEditBtn').onclick = () => {
+            document.getElementById('editModal').style.display = 'none';
+        };
+
+        document.getElementById('saveEditBtn').onclick = async () => {
+            const err = document.getElementById('editError');
+            err.style.display = 'none';
+
+            const pid = document.getElementById('editPaymentId').value;
+            const newAmount = Number(document.getElementById('editAmount').value);
+            const newFreq = document.getElementById('editFrequency').value;
+            const reason = document.getElementById('editReason').value.trim();
+
+            if (isNaN(newAmount) || newAmount <= 0) {
+                err.textContent = 'Kiasi si sahihi';
+                err.style.display = 'block';
+                return;
+            }
+            if (!reason) {
+                err.textContent = 'Weka sababu ya kubadilisha';
+                err.style.display = 'block';
+                return;
+            }
+
+            try {
+                // Pata payment ya awali kwa audit
+                const { data: old } = await supabaseClient
+                    .from('payments').select('*').eq('payment_id', pid).single();
+
+                // Andika audit log
+                await supabaseClient.from('audit_logs').insert({
+                    school_id: session.school_id,
+                    user_id: session.user_id,
+                    action: 'EDIT_PAYMENT',
+                    table_name: 'payments',
+                    record_id: pid,
+                    old_values: old,
+                    new_values: { amount: newAmount, frequency: newFreq },
+                    reason: reason,
+                    device_info: navigator.userAgent
+                });
+
+                // Update payment
+                const { error } = await supabaseClient
+                    .from('payments')
+                    .update({
+                        amount: newAmount,
+                        frequency: newFreq,
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('payment_id', pid);
+
+                if (error) throw error;
+
+                alert('✅ Malipo yamehaririwa!');
+                document.getElementById('editModal').style.display = 'none';
+                await loadData();
+            } catch (e) {
+                err.textContent = e.message;
+                err.style.display = 'block';
+            }
+        };
+
+        document.getElementById('loadBtn').onclick = loadData;
+        document.getElementById('periodSelect').onchange = loadData;
+        document.getElementById('paymentDate').onchange = loadData;
         document.getElementById('studentSearch').addEventListener('input', (e) => {
             const term = e.target.value.toLowerCase();
             document.querySelectorAll('#studentTbody tr').forEach(tr => {
@@ -382,34 +539,24 @@
 
         document.getElementById('logoutBtn').onclick = () => AuthService.logout();
         document.getElementById('homeBtn').onclick = () => {
-            window.location.href = session.role === 'administrator' ? 'admin-dashboard.html' : 'index.html';
+            window.location.href = session.role === 'administrator' ? 'admin-dashboard.html' :
+                                    session.role === 'teacher' ? 'teacher-dashboard.html' :
+                                    'head-dashboard.html';
         };
 
-        // Change password
-        document.getElementById('changePassBtn').onclick = () => {
-            document.getElementById('passModal').style.display = 'block';
-            document.getElementById('passError').style.display = 'none';
-            document.getElementById('oldPass').value = '';
-            document.getElementById('newPass').value = '';
-        };
-        document.getElementById('cancelPassBtn').onclick = () => {
-            document.getElementById('passModal').style.display = 'none';
-        };
-        document.getElementById('savePassBtn').onclick = async () => {
-            const oldP = document.getElementById('oldPass').value;
-            const newP = document.getElementById('newPass').value;
-            const errDiv = document.getElementById('passError');
+        document.getElementById('changePassBtn').onclick = async () => {
+            const oldP = prompt('Nenosiri la sasa:');
+            if (!oldP) return;
+            const newP = prompt('Nenosiri jipya (herufi 6+):');
+            if (!newP) return;
             try {
                 await AuthService.changePassword(oldP, newP);
                 alert('✅ Nenosiri limebadilishwa!');
-                document.getElementById('passModal').style.display = 'none';
             } catch (e) {
-                errDiv.textContent = e.message;
-                errDiv.style.display = 'block';
+                alert('❌ ' + e.message);
             }
         };
 
-        // Register SW
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('sw.js').catch(err => console.log('SW:', err));
         }

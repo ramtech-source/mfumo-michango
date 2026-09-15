@@ -50,7 +50,6 @@
         </div>
     </div>
 
-    <!-- Add/Edit Modal -->
     <div id="modal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:1000; padding:20px; overflow-y:auto;">
         <div style="background:white; border-radius:10px; padding:25px; max-width:500px; margin:40px auto;">
             <h3 id="modalTitle" style="color:#1e40af; margin-bottom:15px;">Ongeza Mtumiaji</h3>
@@ -68,7 +67,7 @@
                     <option value="teacher">Mwalimu</option>
                     <option value="deputy_head_teacher">Naibu Mkuu</option>
                     <option value="head_teacher">Mkuu wa Shule</option>
-                    <option value="administrator">Msimamizi</option>
+                    <option value="administrator" id="adminRoleOpt">Msimamizi</option>
                 </select>
             </div>
             <div class="form-row">
@@ -101,49 +100,32 @@
 
         let classes = [], streams = [], users = [];
 
-        // ============================================
-        // SECURITY: Function ya kuangalia kama mtu anaweza kuhariri/kufuta mtumiaji
-        // ============================================
+        // Ficha "Msimamizi" role kwa wasio Administrator
+        if (session.role !== 'administrator') {
+            document.getElementById('adminRoleOpt').style.display = 'none';
+        }
+
         function canManageUser(targetUser) {
-            // Msimamizi anaweza kuhariri kila mtu
             if (session.role === 'administrator') return true;
-
-            // Mtu hawezi kuhariri mwenyewe
             if (targetUser.user_id === session.user_id) return false;
-
-            // Mkuu wa Shule anaweza kuhariri walimu na naibu, LAKINI SIO Msimamizi
             if (session.role === 'head_teacher') {
                 if (targetUser.role === 'administrator') return false;
                 return true;
             }
-
-            // Naibu Mkuu anaweza kuhariri walimu tu (sio Mkuu, sio Msimamizi)
             if (session.role === 'deputy_head_teacher') {
                 if (targetUser.role === 'administrator' || targetUser.role === 'head_teacher') return false;
                 return true;
             }
-
-            // Mwalimu wa kawaida hawezi kuhariri mtu yeyote
             return false;
         }
 
-        // ============================================
-        // SECURITY: Function ya kuangalia kama mtu anaweza kuongeza role fulani
-        // ============================================
         function canCreateRole(targetRole) {
             if (session.role === 'administrator') return true;
-            if (session.role === 'head_teacher') {
-                return targetRole !== 'administrator';
-            }
-            if (session.role === 'deputy_head_teacher') {
-                return targetRole === 'teacher';
-            }
+            if (session.role === 'head_teacher') return targetRole !== 'administrator';
+            if (session.role === 'deputy_head_teacher') return targetRole === 'teacher';
             return false;
         }
 
-        // ============================================
-        // SECURITY: Angalia kama anaweza kuongeza mtumiaji kabisa
-        // ============================================
         function canAddUser() {
             return ['administrator', 'head_teacher', 'deputy_head_teacher'].includes(session.role);
         }
@@ -162,7 +144,6 @@
             classes = c.data || [];
             streams = s.data || [];
 
-            // Populate class select
             const nc = document.getElementById('assignedClass');
             classes.forEach(cl => {
                 const o = document.createElement('option');
@@ -171,7 +152,6 @@
                 nc.appendChild(o);
             });
 
-            // Ficha kitufe cha Ongeza kama hana ruhusa
             if (!canAddUser()) {
                 document.getElementById('addBtn').style.display = 'none';
             }
@@ -191,12 +171,18 @@
         });
 
         async function loadUsers() {
-            const { data, error } = await supabaseClient
+            let query = supabaseClient
                 .from('users')
                 .select('*')
                 .eq('school_id', session.school_id)
                 .order('full_name');
 
+            // SECURITY: Ficha Administrator kwa wasio Administrator
+            if (session.role !== 'administrator') {
+                query = query.neq('role', 'administrator');
+            }
+
+            const { data, error } = await query;
             if (error) { showMessage('error', error.message); return; }
             users = data || [];
             renderTable();
@@ -216,10 +202,7 @@
                     teacher: 'Mwalimu'
                 };
 
-                // Angalia kama mtu anaweza kuhariri mtumiaji huyu
                 const canManage = canManageUser(u);
-
-                // Unda vitufe kulingana na ruhusa
                 let actionsHTML = '';
                 if (canManage) {
                     actionsHTML = `
@@ -227,11 +210,8 @@
                         <button class="btn btn-sm ${u.status === 'active' ? 'btn-danger' : 'btn-success'}" onclick="toggleUser('${u.user_id}', '${u.status}')">${u.status === 'active' ? 'Zima' : 'Washa'}</button>
                     `;
                 } else {
-                    // Onyesha badge maalum
                     if (u.user_id === session.user_id) {
                         actionsHTML = `<span style="color:#666; font-size:12px; font-style:italic;">👤 Wewe</span>`;
-                    } else if (u.role === 'administrator' && session.role !== 'administrator') {
-                        actionsHTML = `<span style="color:#999; font-size:12px; font-style:italic;">🔒 Imefungwa</span>`;
                     } else {
                         actionsHTML = `<span style="color:#999; font-size:12px; font-style:italic;">🔒 Hauna ruhusa</span>`;
                     }
@@ -277,8 +257,6 @@
         window.editUser = (id) => {
             const u = users.find(x => x.user_id === id);
             if (!u) return;
-
-            // Angalia ruhusa tena
             if (!canManageUser(u)) {
                 alert('Hauna ruhusa ya kuhariri mtumiaji huyu');
                 return;
@@ -303,14 +281,10 @@
 
         window.toggleUser = async (id, current) => {
             const u = users.find(x => x.user_id === id);
-            if (!u) return;
-
-            // Angalia ruhusa tena
-            if (!canManageUser(u)) {
-                alert('Hauna ruhusa ya kubadilisha mtumiaji huyu');
+            if (!u || !canManageUser(u)) {
+                alert('Hauna ruhusa');
                 return;
             }
-
             const newStatus = current === 'active' ? 'inactive' : 'active';
             const { error } = await supabaseClient.from('users').update({ status: newStatus }).eq('user_id', id);
             if (error) { showMessage('error', error.message); return; }
@@ -339,14 +313,12 @@
                 return;
             }
 
-            // SECURITY: Angalia kama anaweza kuongeza role hii
             if (!id && !canCreateRole(data.role)) {
                 err.textContent = 'Hauna ruhusa ya kuongeza mtumiaji na role hii';
                 err.style.display = 'block';
                 return;
             }
 
-            // SECURITY: Angalia kama anaweza kuhariri (kama ni update)
             if (id) {
                 const existing = users.find(x => x.user_id === id);
                 if (existing && !canManageUser(existing)) {
@@ -360,13 +332,11 @@
 
             try {
                 if (id) {
-                    // Update
                     if (pwd) data.password_hash = pwd;
                     const { error } = await supabaseClient.from('users').update(data).eq('user_id', id);
                     if (error) throw error;
                     showMessage('success', 'Mtumiaji amehaririwa!');
                 } else {
-                    // Insert new
                     if (!pwd) throw new Error('Weka nenosiri kwa mtumiaji mpya');
                     data.password_hash = pwd;
                     data.status = 'active';

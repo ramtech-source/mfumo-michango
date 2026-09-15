@@ -52,6 +52,7 @@
                 <a href="settings.html" class="btn btn-outline">⚙️ Mipangilio</a>
                 <a href="audit.html" class="btn btn-outline">📋 Audit Log</a>
                 <a href="backup.html" class="btn btn-outline">💾 Backup</a>
+                <a href="head-dashboard.html" class="btn btn-outline">📊 Ripoti Kamili</a>
                 <a href="teacher-dashboard.html" class="btn btn-outline">✏️ Ukusanyaji</a>
             </div>
         </div>
@@ -61,7 +62,7 @@
             <p><strong>Mtandao:</strong> <span id="netStatus">-</span></p>
             <p><strong>Tarehe:</strong> <span id="todayDate">-</span></p>
             <p><strong>Mwaka wa Shule:</strong> <span id="academicYear">-</span></p>
-            <p><strong>Term:</strong> <span id="currentTerm">-</span></p>
+            <p><strong>Muhula:</strong> <span id="currentTerm">-</span></p>
         </div>
     </div>
 
@@ -69,35 +70,26 @@
     <script src="js/config.js"></script>
     <script src="js/auth.js"></script>
     <script>
-        // Angalia kama ameingia
         const session = AuthService.requireAuth();
         if (!session) throw new Error('Haujaingia');
 
-        // Angalia role
         if (session.role !== 'administrator') {
             alert('Ukurasa huu ni kwa Msimamizi tu');
-            window.location.href = 'teacher-dashboard.html';
+            window.location.href = 'head-dashboard.html';
         }
 
-        // Weka jina la mtumiaji
         document.getElementById('userName').textContent = session.full_name;
-
-        // Tarehe ya leo
         document.getElementById('todayDate').textContent = new Date().toLocaleDateString('sw-TZ');
 
-        // Mtandao
         function updateNetStatus() {
-            document.getElementById('netStatus').textContent =
-                navigator.onLine ? '✅ Upo' : '❌ Haupo';
+            document.getElementById('netStatus').textContent = navigator.onLine ? '✅ Upo' : '❌ Haupo';
         }
         updateNetStatus();
         window.addEventListener('online', updateNetStatus);
         window.addEventListener('offline', updateNetStatus);
 
-        // Load data
         async function loadData() {
             try {
-                // Pata shule
                 const { data: school } = await supabaseClient
                     .from('schools')
                     .select('*')
@@ -112,41 +104,30 @@
                     document.getElementById('currentTerm').textContent = school.current_term;
                 }
 
-                // Hesabu wanafunzi
                 const { count: studentCount } = await supabaseClient
-                    .from('students')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('school_id', session.school_id)
-                    .eq('status', 'active');
+                    .from('students').select('*', { count: 'exact', head: true })
+                    .eq('school_id', session.school_id).eq('status', 'active');
                 document.getElementById('statStudents').textContent = studentCount || 0;
 
-                // Hesabu walimu
                 const { count: teacherCount } = await supabaseClient
-                    .from('users')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('school_id', session.school_id)
-                    .eq('status', 'active');
+                    .from('users').select('*', { count: 'exact', head: true })
+                    .eq('school_id', session.school_id).eq('status', 'active');
                 document.getElementById('statTeachers').textContent = teacherCount || 0;
 
-                // Hesabu madarasa
                 const { count: classCount } = await supabaseClient
-                    .from('classes')
-                    .select('*', { count: 'exact', head: true })
+                    .from('classes').select('*', { count: 'exact', head: true })
                     .eq('school_id', session.school_id);
                 document.getElementById('statClasses').textContent = classCount || 0;
 
-                // Makusanyo ya leo
                 const today = new Date().toISOString().split('T')[0];
                 const { data: payments } = await supabaseClient
-                    .from('payments')
-                    .select('amount')
+                    .from('payments').select('amount')
                     .eq('school_id', session.school_id)
                     .eq('payment_date', today)
                     .eq('is_deleted', false);
 
                 const total = (payments || []).reduce((s, p) => s + Number(p.amount), 0);
                 document.getElementById('statToday').textContent = 'Tsh ' + total.toLocaleString();
-
             } catch (err) {
                 console.error('Error loading data:', err);
             }
@@ -154,10 +135,8 @@
 
         loadData();
 
-        // Logout
         document.getElementById('logoutBtn').onclick = () => AuthService.logout();
 
-        // Register service worker
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('sw.js').catch(err => console.log('SW error:', err));
         }

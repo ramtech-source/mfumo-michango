@@ -65,11 +65,11 @@
                         <input type="text" id="academicYear" placeholder="2026">
                     </div>
                     <div class="form-group">
-                        <label>Term ya Sasa *</label>
+                        <label>Muhula wa Sasa *</label>
                         <select id="currentTerm">
-                            <option value="Term 1">Term 1</option>
-                            <option value="Term 2">Term 2</option>
-                            <option value="Term 3">Term 3</option>
+                            <option value="Muhula 1">Muhula 1</option>
+                            <option value="Muhula 2">Muhula 2</option>
+                            <option value="Muhula 3">Muhula 3</option>
                         </select>
                     </div>
                 </div>
@@ -121,7 +121,7 @@
             document.getElementById('regNo').value = data.registration_number || '';
             document.getElementById('motto').value = data.motto || '';
             document.getElementById('academicYear').value = data.academic_year || '2026';
-            document.getElementById('currentTerm').value = data.current_term || 'Term 1';
+            document.getElementById('currentTerm').value = data.current_term || 'Muhula 1';
 
             updatePreview();
         }
@@ -176,7 +176,6 @@
                 msg.textContent = '✅ Mabadiliko yamehifadhiwa!';
                 msg.style.display = 'block';
 
-                // Update jina la shule kwenye navbar mara moja
                 document.querySelectorAll('[data-school-name]').forEach(el => {
                     el.textContent = updates.school_name;
                 });

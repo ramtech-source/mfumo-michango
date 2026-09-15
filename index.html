@@ -82,6 +82,25 @@
                 btn.textContent = 'INGIA';
             }
         });
+
+        // Load school name
+        (async () => {
+            try {
+                const { data } = await supabaseClient
+                    .from('schools')
+                    .select('school_name, logo_url')
+                    .limit(1)
+                    .single();
+                if (data) {
+                    document.querySelectorAll('[data-school-name]').forEach(el => {
+                        el.textContent = data.school_name;
+                    });
+                    if (data.logo_url) {
+                        document.getElementById('schoolLogo').src = data.logo_url;
+                    }
+                }
+            } catch (e) { console.warn(e); }
+        })();
     </script>
 </body>
 </html>

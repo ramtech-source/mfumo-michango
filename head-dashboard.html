@@ -21,23 +21,29 @@
     </nav>
 
     <div class="container">
-        <h2 style="margin-bottom:20px; color:#1e40af;">Dashibodi ya Mkuu wa Shule</h2>
+        <h2 style="margin-bottom:20px; color:#1e40af;">Ripoti ya Shule</h2>
 
-        <!-- Period Filter -->
+        <!-- Filter ya Kipindi -->
         <div class="card">
             <div class="form-row">
                 <div class="form-group">
                     <label>Kipindi</label>
                     <select id="periodSelect">
-                        <option value="today">Leo</option>
+                        <option value="day">Leo</option>
                         <option value="week">Wiki Hii</option>
-                        <option value="month">Mwezi Huu</option>
+                        <option value="month" selected>Mwezi Huu</option>
+                        <option value="muhula">Muhula Huu</option>
+                        <option value="six_months">Miezi 6</option>
                         <option value="year">Mwaka Huu</option>
                         <option value="all">Yote</option>
                     </select>
                 </div>
+                <div class="form-group">
+                    <label>Tarehe ya Kuanzia</label>
+                    <input type="date" id="refDate">
+                </div>
                 <div class="form-group" style="display:flex; align-items:flex-end;">
-                    <button class="btn btn-primary btn-block" id="loadBtn">Pakia</button>
+                    <button class="btn btn-primary btn-block" id="loadBtn">Pakia Ripoti</button>
                 </div>
             </div>
         </div>
@@ -62,7 +68,7 @@
             </div>
         </div>
 
-        <!-- Menu -->
+        <!-- Menu ya Haraka -->
         <div class="card">
             <h2>Menu ya Haraka</h2>
             <div class="dashboard-grid">
@@ -73,7 +79,7 @@
             </div>
         </div>
 
-        <!-- Collection by Class -->
+        <!-- Ripoti kwa Darasa -->
         <div class="card">
             <h2>Makusanyo kwa Darasa</h2>
             <div class="table-responsive">
@@ -85,16 +91,17 @@
                             <th>Waliochangia</th>
                             <th>Hawajachangia</th>
                             <th>Jumla (Tsh)</th>
+                            <th>%</th>
                         </tr>
                     </thead>
                     <tbody id="classTable">
-                        <tr><td colspan="5" class="text-center">Inapakia...</td></tr>
+                        <tr><td colspan="6" class="text-center">Inapakia...</td></tr>
                     </tbody>
                 </table>
             </div>
         </div>
 
-        <!-- Chart -->
+        <!-- Chati -->
         <div class="card">
             <h2>Chati ya Makusanyo kwa Darasa</h2>
             <div id="classChart" style="display:flex; align-items:flex-end; gap:8px; height:200px; padding:10px 0; overflow-x:auto;">
@@ -102,7 +109,7 @@
             </div>
         </div>
 
-        <!-- Collection by Contribution -->
+        <!-- Ripoti kwa Aina ya Mchango -->
         <div class="card">
             <h2>Makusanyo kwa Aina ya Mchango</h2>
             <div class="table-responsive">
@@ -120,8 +127,39 @@
                 </table>
             </div>
         </div>
+
+        <!-- Ripoti kwa Mwalimu -->
+        <div class="card">
+            <h2>Makusanyo kwa Mwalimu</h2>
+            <div class="table-responsive">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Mwalimu</th>
+                            <th>Idadi ya Malipo</th>
+                            <th>Jumla (Tsh)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="teacherTable">
+                        <tr><td colspan="3" class="text-center">Inapakia...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Export -->
+        <div class="card">
+            <h2>Export Ripoti</h2>
+            <div class="flex gap-2" style="flex-wrap:wrap;">
+                <button class="btn btn-outline" id="exportClassBtn">📊 Export kwa Darasa (Excel)</button>
+                <button class="btn btn-outline" id="exportTeacherBtn">📊 Export kwa Mwalimu (Excel)</button>
+                <button class="btn btn-outline" id="exportAllBtn">📊 Export Malipo Yote (Excel)</button>
+                <button class="btn btn-outline" id="printBtn">🖨️ Chapisha</button>
+            </div>
+        </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/config.js"></script>
     <script src="js/auth.js"></script>
@@ -132,12 +170,17 @@
             init();
         }
 
+        let reportData = { classes: [], teachers: [], contributions: [], payments: [], students: [] };
+
         async function init() {
+            document.getElementById('refDate').value = new Date().toISOString().split('T')[0];
+
             const { data: school } = await supabaseClient
                 .from('schools').select('*').eq('school_id', session.school_id).single();
             if (school) {
                 document.querySelectorAll('[data-school-name]').forEach(el => el.textContent = school.school_name);
             }
+
             await loadData();
 
             if ('serviceWorker' in navigator) {
@@ -145,149 +188,229 @@
             }
         }
 
-        function getDateRange(period) {
-            const today = new Date();
-            const fmt = (d) => d.toISOString().split('T')[0];
-            let start = new Date(today);
-            let end = new Date(today);
-
-            switch (period) {
-                case 'today':
-                    break;
-                case 'week':
-                    const day = today.getDay();
-                    start.setDate(today.getDate() - day);
-                    end.setDate(start.getDate() + 6);
-                    break;
-                case 'month':
-                    start = new Date(today.getFullYear(), today.getMonth(), 1);
-                    end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-                    break;
-                case 'year':
-                    start = new Date(today.getFullYear(), 0, 1);
-                    end = new Date(today.getFullYear(), 11, 31);
-                    break;
-                case 'all':
-                    return { start: '2000-01-01', end: '2100-12-31' };
-            }
-            return { start: fmt(start), end: fmt(end) };
-        }
-
         async function loadData() {
             const period = document.getElementById('periodSelect').value;
-            const { start, end } = getDateRange(period);
+            const refDate = document.getElementById('refDate').value;
+            const range = PeriodHelper.getDateRange(period, refDate);
+
+            document.getElementById('loadBtn').textContent = 'Inapakia...';
 
             try {
-                // Pata classes, students, payments, contributions
-                const [clsRes, stuRes, payRes, conRes] = await Promise.all([
+                const [clsRes, stuRes, payRes, conRes, usrRes] = await Promise.all([
                     supabaseClient.from('classes').select('*').eq('school_id', session.school_id).order('display_order'),
                     supabaseClient.from('students').select('*').eq('school_id', session.school_id).eq('status', 'active'),
-                    supabaseClient.from('payments').select('*').eq('school_id', session.school_id).eq('is_deleted', false).gte('payment_date', start).lte('payment_date', end),
-                    supabaseClient.from('contributions').select('*').eq('school_id', session.school_id)
+                    supabaseClient.from('payments').select('*').eq('school_id', session.school_id).eq('is_deleted', false).gte('payment_date', range.start).lte('payment_date', range.end),
+                    supabaseClient.from('contributions').select('*').eq('school_id', session.school_id),
+                    supabaseClient.from('users').select('*').eq('school_id', session.school_id)
                 ]);
 
-                const classes = clsRes.data || [];
-                const students = stuRes.data || [];
-                const payments = payRes.data || [];
-                const contributions = conRes.data || [];
+                reportData.classes = clsRes.data || [];
+                reportData.students = stuRes.data || [];
+                reportData.payments = payRes.data || [];
+                reportData.contributions = conRes.data || [];
+                reportData.teachers = usrRes.data || [];
 
-                // Stats
-                const total = payments.reduce((s, p) => s + Number(p.amount), 0);
-                const paidIds = new Set(payments.map(p => p.student_id));
-
-                document.getElementById('totalCollection').textContent = 'Tsh ' + total.toLocaleString();
-                document.getElementById('totalPaid').textContent = paidIds.size;
-                document.getElementById('totalUnpaid').textContent = Math.max(0, students.length - paidIds.size);
-                document.getElementById('totalStudents').textContent = students.length;
-
-                // By Class
-                const byClass = {};
-                classes.forEach(c => {
-                    byClass[c.class_id] = {
-                        name: c.class_name,
-                        students: 0,
-                        paid: new Set(),
-                        total: 0
-                    };
-                });
-                students.forEach(s => {
-                    if (byClass[s.class_id]) byClass[s.class_id].students++;
-                });
-                payments.forEach(p => {
-                    const student = students.find(s => s.student_id === p.student_id);
-                    if (student && byClass[student.class_id]) {
-                        byClass[student.class_id].paid.add(p.student_id);
-                        byClass[student.class_id].total += Number(p.amount);
-                    }
-                });
-
-                const tbody = document.getElementById('classTable');
-                const chart = document.getElementById('classChart');
-                tbody.innerHTML = '';
-                chart.innerHTML = '';
-
-                const classArr = Object.values(byClass).filter(c => c.students > 0 || c.total > 0);
-
-                if (classArr.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="5" class="text-center">Hakuna data</td></tr>';
-                    chart.innerHTML = '<p style="color:#666;">Hakuna data</p>';
-                } else {
-                    const maxTotal = Math.max(...classArr.map(c => c.total), 1);
-
-                    classArr.forEach(c => {
-                        const tr = document.createElement('tr');
-                        tr.innerHTML = `
-                            <td><strong>${c.name}</strong></td>
-                            <td>${c.students}</td>
-                            <td>${c.paid.size}</td>
-                            <td>${c.students - c.paid.size}</td>
-                            <td>Tsh ${c.total.toLocaleString()}</td>`;
-                        tbody.appendChild(tr);
-
-                        const h = (c.total / maxTotal) * 100;
-                        const barDiv = document.createElement('div');
-                        barDiv.style.cssText = 'flex:1; min-width:50px; display:flex; flex-direction:column; align-items:center; gap:5px;';
-                        barDiv.innerHTML = `
-                            <div style="font-size:11px; font-weight:600; color:#1e40af;">${c.total.toLocaleString()}</div>
-                            <div style="width:100%; height:${Math.max(h, 3)}%; background:linear-gradient(180deg, #3b82f6, #1e40af); border-radius:4px 4px 0 0; min-height:4px;"></div>
-                            <div style="font-size:10px; color:#666; text-align:center;">${c.name.replace('Grade ', 'G')}</div>`;
-                        chart.appendChild(barDiv);
-                    });
-                }
-
-                // By Contribution
-                const byContr = {};
-                contributions.forEach(c => {
-                    byContr[c.contribution_id] = { name: c.contribution_name, count: 0, total: 0 };
-                });
-                payments.forEach(p => {
-                    if (byContr[p.contribution_id]) {
-                        byContr[p.contribution_id].count++;
-                        byContr[p.contribution_id].total += Number(p.amount);
-                    }
-                });
-
-                const ctbody = document.getElementById('contribTable');
-                ctbody.innerHTML = '';
-                const contrArr = Object.values(byContr).filter(c => c.count > 0);
-                if (contrArr.length === 0) {
-                    ctbody.innerHTML = '<tr><td colspan="3" class="text-center">Hakuna data</td></tr>';
-                } else {
-                    contrArr.forEach(c => {
-                        const tr = document.createElement('tr');
-                        tr.innerHTML = `
-                            <td>${c.name}</td>
-                            <td>${c.count}</td>
-                            <td>Tsh ${c.total.toLocaleString()}</td>`;
-                        ctbody.appendChild(tr);
-                    });
-                }
-
-            } catch (err) {
-                console.error(err);
-                alert('Hitilafu: ' + err.message);
+                renderAll();
+            } catch (e) {
+                alert('Hitilafu: ' + e.message);
+            } finally {
+                document.getElementById('loadBtn').textContent = 'Pakia Ripoti';
             }
         }
+
+        function renderAll() {
+            const total = reportData.payments.reduce((s, p) => s + Number(p.amount), 0);
+            const paidIds = new Set(reportData.payments.map(p => p.student_id));
+
+            document.getElementById('totalCollection').textContent = 'Tsh ' + total.toLocaleString();
+            document.getElementById('totalPaid').textContent = paidIds.size;
+            document.getElementById('totalUnpaid').textContent = Math.max(0, reportData.students.length - paidIds.size);
+            document.getElementById('totalStudents').textContent = reportData.students.length;
+
+            // By Class
+            const byClass = {};
+            reportData.classes.forEach(c => {
+                byClass[c.class_id] = {
+                    id: c.class_id,
+                    name: c.class_name,
+                    students: 0,
+                    paid: new Set(),
+                    total: 0
+                };
+            });
+            reportData.students.forEach(s => {
+                if (byClass[s.class_id]) byClass[s.class_id].students++;
+            });
+            reportData.payments.forEach(p => {
+                const student = reportData.students.find(s => s.student_id === p.student_id);
+                if (student && byClass[student.class_id]) {
+                    byClass[student.class_id].paid.add(p.student_id);
+                    byClass[student.class_id].total += Number(p.amount);
+                }
+            });
+
+            const tbody = document.getElementById('classTable');
+            const chart = document.getElementById('classChart');
+            tbody.innerHTML = '';
+            chart.innerHTML = '';
+
+            const classArr = Object.values(byClass).filter(c => c.students > 0 || c.total > 0);
+
+            if (classArr.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center">Hakuna data</td></tr>';
+                chart.innerHTML = '<p style="color:#666;">Hakuna data</p>';
+            } else {
+                const maxTotal = Math.max(...classArr.map(c => c.total), 1);
+                classArr.forEach(c => {
+                    const pct = c.students > 0 ? Math.round((c.paid.size / c.students) * 100) : 0;
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td><strong>${c.name}</strong></td>
+                        <td>${c.students}</td>
+                        <td>${c.paid.size}</td>
+                        <td>${c.students - c.paid.size}</td>
+                        <td>Tsh ${c.total.toLocaleString()}</td>
+                        <td><span class="badge ${pct >= 75 ? 'badge-success' : pct >= 50 ? 'badge-warning' : 'badge-danger'}">${pct}%</span></td>`;
+                    tbody.appendChild(tr);
+
+                    const h = (c.total / maxTotal) * 100;
+                    const barDiv = document.createElement('div');
+                    barDiv.style.cssText = 'flex:1; min-width:50px; display:flex; flex-direction:column; align-items:center; gap:5px;';
+                    barDiv.innerHTML = `
+                        <div style="font-size:11px; font-weight:600; color:#1e40af;">${c.total.toLocaleString()}</div>
+                        <div style="width:100%; height:${Math.max(h, 3)}%; background:linear-gradient(180deg, #3b82f6, #1e40af); border-radius:4px 4px 0 0; min-height:4px;"></div>
+                        <div style="font-size:10px; color:#666; text-align:center;">${c.name.replace('Grade ', 'G')}</div>`;
+                    chart.appendChild(barDiv);
+                });
+            }
+
+            // By Contribution
+            const byContr = {};
+            reportData.contributions.forEach(c => {
+                byContr[c.contribution_id] = { name: c.contribution_name, count: 0, total: 0 };
+            });
+            reportData.payments.forEach(p => {
+                if (byContr[p.contribution_id]) {
+                    byContr[p.contribution_id].count++;
+                    byContr[p.contribution_id].total += Number(p.amount);
+                }
+            });
+
+            const ctbody = document.getElementById('contribTable');
+            ctbody.innerHTML = '';
+            const contrArr = Object.values(byContr).filter(c => c.count > 0).sort((a,b) => b.total - a.total);
+            if (contrArr.length === 0) {
+                ctbody.innerHTML = '<tr><td colspan="3" class="text-center">Hakuna data</td></tr>';
+            } else {
+                contrArr.forEach(c => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `<td>${c.name}</td><td>${c.count}</td><td>Tsh ${c.total.toLocaleString()}</td>`;
+                    ctbody.appendChild(tr);
+                });
+            }
+
+            // By Teacher
+            const byTeacher = {};
+            reportData.teachers.forEach(t => {
+                byTeacher[t.user_id] = { name: t.full_name, count: 0, total: 0 };
+            });
+            reportData.payments.forEach(p => {
+                if (byTeacher[p.teacher_id]) {
+                    byTeacher[p.teacher_id].count++;
+                    byTeacher[p.teacher_id].total += Number(p.amount);
+                }
+            });
+
+            const ttbody = document.getElementById('teacherTable');
+            ttbody.innerHTML = '';
+            const teacherArr = Object.values(byTeacher).filter(t => t.count > 0).sort((a,b) => b.total - a.total);
+            if (teacherArr.length === 0) {
+                ttbody.innerHTML = '<tr><td colspan="3" class="text-center">Hakuna data</td></tr>';
+            } else {
+                teacherArr.forEach(t => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `<td>${t.name}</td><td>${t.count}</td><td>Tsh ${t.total.toLocaleString()}</td>`;
+                    ttbody.appendChild(tr);
+                });
+            }
+        }
+
+        // Export functions
+        document.getElementById('exportClassBtn').onclick = () => {
+            const data = [];
+            const byClass = {};
+            reportData.classes.forEach(c => {
+                byClass[c.class_id] = { name: c.class_name, students: 0, paid: new Set(), total: 0 };
+            });
+            reportData.students.forEach(s => {
+                if (byClass[s.class_id]) byClass[s.class_id].students++;
+            });
+            reportData.payments.forEach(p => {
+                const student = reportData.students.find(s => s.student_id === p.student_id);
+                if (student && byClass[student.class_id]) {
+                    byClass[student.class_id].paid.add(p.student_id);
+                    byClass[student.class_id].total += Number(p.amount);
+                }
+            });
+            Object.values(byClass).forEach(c => {
+                data.push({
+                    'Darasa': c.name,
+                    'Wanafunzi': c.students,
+                    'Waliochangia': c.paid.size,
+                    'Hawajachangia': c.students - c.paid.size,
+                    'Jumla (Tsh)': c.total
+                });
+            });
+            const ws = XLSX.utils.json_to_sheet(data);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Kwa Darasa');
+            XLSX.writeFile(wb, `ripoti_darasa_${new Date().toISOString().split('T')[0]}.xlsx`);
+        };
+
+        document.getElementById('exportTeacherBtn').onclick = () => {
+            const data = [];
+            const byTeacher = {};
+            reportData.teachers.forEach(t => {
+                byTeacher[t.user_id] = { name: t.full_name, count: 0, total: 0 };
+            });
+            reportData.payments.forEach(p => {
+                if (byTeacher[p.teacher_id]) {
+                    byTeacher[p.teacher_id].count++;
+                    byTeacher[p.teacher_id].total += Number(p.amount);
+                }
+            });
+            Object.values(byTeacher).filter(t => t.count > 0).forEach(t => {
+                data.push({ 'Mwalimu': t.name, 'Idadi ya Malipo': t.count, 'Jumla (Tsh)': t.total });
+            });
+            const ws = XLSX.utils.json_to_sheet(data);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Kwa Mwalimu');
+            XLSX.writeFile(wb, `ripoti_walimu_${new Date().toISOString().split('T')[0]}.xlsx`);
+        };
+
+        document.getElementById('exportAllBtn').onclick = () => {
+            const data = reportData.payments.map(p => {
+                const student = reportData.students.find(s => s.student_id === p.student_id);
+                const contrib = reportData.contributions.find(c => c.contribution_id === p.contribution_id);
+                const teacher = reportData.teachers.find(t => t.user_id === p.teacher_id);
+                const cls = student ? reportData.classes.find(c => c.class_id === student.class_id) : null;
+                return {
+                    'Transaction ID': p.transaction_id,
+                    'Tarehe': p.payment_date,
+                    'Mwanafunzi': student?.full_name || '',
+                    'Darasa': cls?.class_name || '',
+                    'Mchango': contrib?.contribution_name || '',
+                    'Kiasi (Tsh)': Number(p.amount),
+                    'Mwalimu': teacher?.full_name || ''
+                };
+            });
+            const ws = XLSX.utils.json_to_sheet(data);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Malipo Yote');
+            XLSX.writeFile(wb, `malipo_yote_${new Date().toISOString().split('T')[0]}.xlsx`);
+        };
+
+        document.getElementById('printBtn').onclick = () => window.print();
 
         document.getElementById('loadBtn').onclick = loadData;
         document.getElementById('periodSelect').onchange = loadData;
