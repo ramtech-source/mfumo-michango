@@ -1,11 +1,9 @@
 // =====================================================
-// auth.js - Authentication Service
+// auth.js - Authentication Service (IMEBORESHWA)
 // =====================================================
 
 const AuthService = {
-    // Login
     async login(username, password) {
-        // Pata user kwa username
         const { data: users, error } = await supabaseClient
             .from('users')
             .select('*')
@@ -20,12 +18,10 @@ const AuthService = {
 
         const user = users[0];
 
-        // Verify password (simple comparison kwa mwanzo)
         if (password !== user.password_hash) {
             throw new Error('Jina la mtumiaji au nenosiri si sahihi');
         }
 
-        // Update last login
         try {
             await supabaseClient
                 .from('users')
@@ -35,7 +31,6 @@ const AuthService = {
             console.warn('Could not update last login', e);
         }
 
-        // Unda session
         const session = {
             user_id: user.user_id,
             school_id: user.school_id,
@@ -52,17 +47,14 @@ const AuthService = {
         return session;
     },
 
-    // Logout
     logout() {
         localStorage.removeItem('session');
         window.location.href = 'index.html';
     },
 
-    // Pata session
     getSession() {
         const session = localStorage.getItem('session');
         if (!session) return null;
-
         try {
             const parsed = JSON.parse(session);
             if (parsed.expires_at < Date.now()) {
@@ -75,7 +67,6 @@ const AuthService = {
         }
     },
 
-    // Require auth
     requireAuth() {
         const session = this.getSession();
         if (!session) {
@@ -85,7 +76,6 @@ const AuthService = {
         return session;
     },
 
-    // Require role
     requireRole(roles) {
         const session = this.requireAuth();
         if (!session) return null;
@@ -97,7 +87,6 @@ const AuthService = {
         return session;
     },
 
-    // Badilisha password
     async changePassword(oldPassword, newPassword) {
         const session = this.getSession();
         if (!session) throw new Error('Haujaingia');
@@ -106,7 +95,6 @@ const AuthService = {
             throw new Error('Nenosiri jipya liwe na herufi 6 au zaidi');
         }
 
-        // Pata user
         const { data: users } = await supabaseClient
             .from('users')
             .select('password_hash')
@@ -115,12 +103,10 @@ const AuthService = {
 
         if (!users || users.length === 0) throw new Error('Mtumiaji haipo');
 
-        // Verify old
         if (oldPassword !== users[0].password_hash) {
             throw new Error('Nenosiri la sasa si sahihi');
         }
 
-        // Update
         const { error } = await supabaseClient
             .from('users')
             .update({ password_hash: newPassword, updated_at: new Date().toISOString() })
@@ -131,4 +117,79 @@ const AuthService = {
     }
 };
 
+// =====================================================
+// KAZI MPYA: Functions za kipindi (period)
+// =====================================================
+
+const PeriodHelper = {
+    // Pata date range kulingana na period
+    getDateRange(period, refDate) {
+        const d = new Date(refDate);
+        const fmt = (x) => {
+            const y = x.getFullYear();
+            const m = String(x.getMonth() + 1).padStart(2, '0');
+            const dd = String(x.getDate()).padStart(2, '0');
+            return `${y}-${m}-${dd}`;
+        };
+
+        let start = new Date(d);
+        let end = new Date(d);
+
+        switch (period) {
+            case 'day':
+                break;
+            case 'week':
+                const day = d.getDay();
+                start.setDate(d.getDate() - day);
+                end = new Date(start);
+                end.setDate(start.getDate() + 6);
+                break;
+            case 'month':
+                start = new Date(d.getFullYear(), d.getMonth(), 1);
+                end = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+                break;
+            case 'muhula':
+                // Muhula = miezi 4 (miezi 3-4)
+                const month = d.getMonth();
+                if (month < 4) {
+                    start = new Date(d.getFullYear(), 0, 1);
+                    end = new Date(d.getFullYear(), 3, 30);
+                } else if (month < 8) {
+                    start = new Date(d.getFullYear(), 4, 1);
+                    end = new Date(d.getFullYear(), 7, 31);
+                } else {
+                    start = new Date(d.getFullYear(), 8, 1);
+                    end = new Date(d.getFullYear(), 11, 31);
+                }
+                break;
+            case 'six_months':
+                start = new Date(d.getFullYear(), d.getMonth() - 6, 1);
+                end = d;
+                break;
+            case 'year':
+                start = new Date(d.getFullYear(), 0, 1);
+                end = new Date(d.getFullYear(), 11, 31);
+                break;
+            case 'all':
+                return { start: '2000-01-01', end: '2100-12-31' };
+        }
+        return { start: fmt(start), end: fmt(end) };
+    },
+
+    // Pata label ya period kwa Kiswahili
+    getLabel(period) {
+        const labels = {
+            day: 'Leo',
+            week: 'Wiki Hii',
+            month: 'Mwezi Huu',
+            muhula: 'Muhula Huu',
+            six_months: 'Miezi 6',
+            year: 'Mwaka Huu',
+            all: 'Yote'
+        };
+        return labels[period] || period;
+    }
+};
+
 window.AuthService = AuthService;
+window.PeriodHelper = PeriodHelper;
